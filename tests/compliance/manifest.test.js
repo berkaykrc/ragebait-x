@@ -1,13 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile, access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const rootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 const distDir = path.join(rootDir, "dist-mv2");
 
-const manifest = JSON.parse(await readFile(path.join(rootDir, "manifest.mv2.json"), "utf8"));
+const manifest = JSON.parse(
+  await readFile(path.join(rootDir, "manifest.mv2.json"), "utf8"),
+);
 
 /** Every asset path the manifest points at, collected generically. */
 function referencedAssets(m) {
@@ -18,7 +24,9 @@ function referencedAssets(m) {
     m.background?.service_worker,
     m.options_ui?.page,
     m.options_page,
-    ...(m.web_accessible_resources ?? []).map((r) => (typeof r === "string" ? r : r.resources)),
+    ...(m.web_accessible_resources ?? []).map((
+      r,
+    ) => (typeof r === "string" ? r : r.resources)),
   ].flat().filter((v) => typeof v === "string" && v.length > 0);
 }
 
@@ -46,7 +54,9 @@ test("manifest: runs the content script at document_start on x.com and twitter.c
 
 test("manifest: exposes page.js as a web-accessible resource (the page-world bundle)", () => {
   const war = manifest.web_accessible_resources;
-  const list = Array.isArray(war) ? war : (war ?? []).map((r) => r.resources).flat();
+  const list = Array.isArray(war)
+    ? war
+    : (war ?? []).map((r) => r.resources).flat();
   assert.ok(list.includes("page.js"));
 });
 
@@ -58,13 +68,19 @@ test("manifest: uses an MV2 background script page and an options page", () => {
 });
 
 test("manifest: pins strict_min_version and a placeholder gecko id", () => {
-  assert.equal(manifest.browser_specific_settings.gecko.strict_min_version, "121.0");
+  assert.equal(
+    manifest.browser_specific_settings.gecko.strict_min_version,
+    "121.0",
+  );
   assert.match(manifest.browser_specific_settings.gecko.id, /@/);
 });
 
 test("manifest: every referenced asset resolves to a file the build emits", async () => {
   const assets = referencedAssets(manifest);
-  assert.ok(assets.length > 0, "expected the manifest to reference at least one asset");
+  assert.ok(
+    assets.length > 0,
+    "expected the manifest to reference at least one asset",
+  );
   for (const asset of assets) {
     await assert.doesNotReject(
       access(path.join(distDir, asset)),
@@ -75,6 +91,10 @@ test("manifest: every referenced asset resolves to a file the build emits", asyn
 
 test("manifest: no referenced path is prefixed with dist- or src/", () => {
   for (const asset of referencedAssets(manifest)) {
-    assert.doesNotMatch(asset, /^(dist-|src\/)/, `manifest path "${asset}" must be relative to the build root`);
+    assert.doesNotMatch(
+      asset,
+      /^(dist-|src\/)/,
+      `manifest path "${asset}" must be relative to the build root`,
+    );
   }
 });

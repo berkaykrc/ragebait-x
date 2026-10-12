@@ -8,7 +8,9 @@ const ORIGIN = "https://x.com";
 const TOKEN = "tok-from-background";
 
 function makeDom() {
-  return new JSDOM("<!doctype html><html><body></body></html>", { url: ORIGIN });
+  return new JSDOM("<!doctype html><html><body></body></html>", {
+    url: ORIGIN,
+  });
 }
 
 /** Fake browser API: captures what the content script sends and listens with. */
@@ -67,7 +69,10 @@ test("content: injects the page bundle from the extension URL", async () => {
   const { doc } = boot();
   await settle();
   const script = doc.querySelector('script[src="moz-extension://abc/page.js"]');
-  assert.ok(script, "expected page.js to be injected from the extension origin");
+  assert.ok(
+    script,
+    "expected page.js to be injected from the extension origin",
+  );
 });
 
 test("content: registers a storage.onChanged listener", async () => {
@@ -83,7 +88,12 @@ test("content: forwards a storage config change to the page world with the token
   // Real storage.onChanged shape: changes is keyed by storage key, each entry
   // wrapped in {oldValue, newValue}.
   browserApi.storageListeners[0](
-    { config: { oldValue: { showNumber: false }, newValue: { showNumber: true } } },
+    {
+      config: {
+        oldValue: { showNumber: false },
+        newValue: { showNumber: true },
+      },
+    },
     "local",
   );
   await settle();
@@ -108,6 +118,14 @@ test("content: installs the window message bridge", async () => {
   }));
   await settle();
 
-  assert.equal(browserApi.sent.length, 2, "expected the bridge to forward the request to the background");
-  assert.deepEqual(browserApi.sent[1], { type: "rb:score-request", handle: "yooksiktir", token: TOKEN });
+  assert.equal(
+    browserApi.sent.length,
+    2,
+    "expected the bridge to forward the request to the background",
+  );
+  assert.deepEqual(browserApi.sent[1], {
+    type: "rb:score-request",
+    handle: "yooksiktir",
+    token: TOKEN,
+  });
 });

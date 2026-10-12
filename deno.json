@@ -1,0 +1,16 @@
+{
+  "lint": {
+    "exclude": ["dist-mv2", "dist-mv3", "node_modules", ".superpowers", "docs"],
+    "rules": {
+      // This is a Node project (node:test, jsdom, esbuild), not a Deno one.
+      // Deno's rule set assumes the Deno runtime, so Node globals like
+      // setImmediate and process are flagged even though they are the
+      // correct API here. Test files rely on setImmediate for microtask
+      // settling after a promise chain.
+      "exclude": ["no-node-globals"]
+    }
+  },
+  "fmt": {
+    "exclude": ["dist-mv2", "dist-mv3", "node_modules", ".superpowers", "docs"]
+  }
+}

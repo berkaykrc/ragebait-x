@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
-import { createConfigReader, CONFIG_TAG_ID } from "../../src/page/inject-config.js";
+import {
+  CONFIG_TAG_ID,
+  createConfigReader,
+} from "../../src/page/inject-config.js";
 
 const ORIGIN = "https://x.com";
 
@@ -24,7 +27,9 @@ test("inject-config: exposes the tag id the content script injects", () => {
 });
 
 test("inject-config: a missing tag yields a null token and empty config", () => {
-  const reader = createConfigReader(docWithTag("<!doctype html><html><body></body></html>"));
+  const reader = createConfigReader(
+    docWithTag("<!doctype html><html><body></body></html>"),
+  );
   assert.equal(reader.getToken(), null);
   assert.deepEqual(reader.getConfig(), {});
 });
@@ -75,7 +80,9 @@ test("inject-config: parses the tag once, not on every call", () => {
 });
 
 test("inject-config: canIssueRequest is false without a token", () => {
-  const reader = createConfigReader(docWithTag("<!doctype html><html><body></body></html>"));
+  const reader = createConfigReader(
+    docWithTag("<!doctype html><html><body></body></html>"),
+  );
   assert.equal(reader.canIssueRequest(), false);
 });
 

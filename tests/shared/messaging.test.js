@@ -12,9 +12,11 @@ function makeWorlds() {
   const sent = [];
   const posted = [];
 
+  // This fake only simulates the "message" channel, so the event type is not
+  // dispatched on.
   const win = {
-    addEventListener: (type, fn) => listeners.message.push(fn),
-    removeEventListener: (type, fn) => {
+    addEventListener: (_type, fn) => listeners.message.push(fn),
+    removeEventListener: (_type, fn) => {
       const i = listeners.message.indexOf(fn);
       if (i >= 0) listeners.message.splice(i, 1);
     },
@@ -57,39 +59,63 @@ const pageMsg = (data, origin = ORIGIN) => ({ origin, data });
 
 test("bridge: forwards a valid score request to the background", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-request", handle: "Yooksiktir", token: TOKEN }));
+  listeners.message[0](
+    pageMsg({ type: "rb:score-request", handle: "Yooksiktir", token: TOKEN }),
+  );
 
   assert.equal(sent.length, 1);
-  assert.deepEqual(sent[0], { type: "rb:score-request", handle: "yooksiktir", token: TOKEN });
+  assert.deepEqual(sent[0], {
+    type: "rb:score-request",
+    handle: "yooksiktir",
+    token: TOKEN,
+  });
 });
 
 test("bridge: drops a message from a foreign origin", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-request", handle: "yoksiktir", token: TOKEN }, "https://evil.example"));
+  listeners.message[0](
+    pageMsg(
+      { type: "rb:score-request", handle: "yoksiktir", token: TOKEN },
+      "https://evil.example",
+    ),
+  );
   assert.equal(sent.length, 0);
 });
 
 test("bridge: drops a message with a token mismatch", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-request", handle: "yoksiktir", token: "wrong" }));
+  listeners.message[0](
+    pageMsg({ type: "rb:score-request", handle: "yoksiktir", token: "wrong" }),
+  );
   assert.equal(sent.length, 0);
 });
 
 test("bridge: drops a message carrying a score-bearing field", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-request", handle: "yoksiktir", token: TOKEN, band: "high" }));
+  listeners.message[0](
+    pageMsg({
+      type: "rb:score-request",
+      handle: "yoksiktir",
+      token: TOKEN,
+      band: "high",
+    }),
+  );
   assert.equal(sent.length, 0);
 });
 
 test("bridge: drops a request whose handle fails the regex", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-request", handle: "a/b", token: TOKEN }));
+  listeners.message[0](
+    pageMsg({ type: "rb:score-request", handle: "a/b", token: TOKEN }),
+  );
   assert.equal(sent.length, 0);
 });
 
 test("bridge: forwards cancel without a handle round-trip", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-cancel", token: TOKEN, requestId: "r-1" }));
+  listeners.message[0](
+    pageMsg({ type: "rb:score-cancel", token: TOKEN, requestId: "r-1" }),
+  );
 
   assert.equal(sent.length, 1);
   assert.equal(sent[0].type, "rb:score-cancel");
@@ -100,7 +126,9 @@ test("bridge: forwards cancel without a handle round-trip", () => {
 
 test("bridge: forwards refresh without a handle round-trip", () => {
   const { listeners, sent } = setup();
-  listeners.message[0](pageMsg({ type: "rb:score-refresh", token: TOKEN, requestId: "r-1" }));
+  listeners.message[0](
+    pageMsg({ type: "rb:score-refresh", token: TOKEN, requestId: "r-1" }),
+  );
 
   assert.equal(sent.length, 1);
   assert.equal(sent[0].type, "rb:score-refresh");
@@ -112,7 +140,11 @@ test("bridge: forwards refresh without a handle round-trip", () => {
 test("bridge: posts a background score response back to the page with the token echoed", () => {
   const { listeners, posted } = setup();
   listeners.runtime[0](
-    { type: "rb:score-response", requestId: "r-1", result: { state: "result", band: "high" } },
+    {
+      type: "rb:score-response",
+      requestId: "r-1",
+      result: { state: "result", band: "high" },
+    },
   );
 
   assert.equal(posted.length, 1);

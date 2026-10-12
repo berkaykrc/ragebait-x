@@ -2,11 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  isTrustedRagebaitMessage,
-  parseScoreRequest,
+  ALLOWED_MSG_TYPES,
   escapeHtml,
   HANDLE_RE,
-  ALLOWED_MSG_TYPES,
+  isTrustedRagebaitMessage,
+  parseScoreRequest,
 } from "../../src/shared/security.js";
 
 const ORIGIN = "https://x.com";
@@ -20,37 +20,68 @@ function msgEvent(data, origin = ORIGIN) {
 // --- isTrustedRagebaitMessage ------------------------------------------------
 
 test("isTrustedRagebaitMessage: accepts a well-formed request from the right origin", () => {
-  const event = msgEvent({ type: "rb:score-request", handle: "yoksiktir", token: TOKEN });
+  const event = msgEvent({
+    type: "rb:score-request",
+    handle: "yoksiktir",
+    token: TOKEN,
+  });
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), true);
 });
 
 test("isTrustedRagebaitMessage: rejects a session-origin mismatch", () => {
-  const event = msgEvent({ type: "rb:score-request", handle: "yoksiktir", token: TOKEN }, "https://evil.example");
+  const event = msgEvent({
+    type: "rb:score-request",
+    handle: "yoksiktir",
+    token: TOKEN,
+  }, "https://evil.example");
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), false);
 });
 
 test("isTrustedRagebaitMessage: rejects an unknown message type", () => {
-  const event = msgEvent({ type: "rb:totally-unknown", handle: "yooksiktir", token: TOKEN });
+  const event = msgEvent({
+    type: "rb:totally-unknown",
+    handle: "yooksiktir",
+    token: TOKEN,
+  });
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), false);
 });
 
 test("isTrustedRagebaitMessage: rejects a token mismatch", () => {
-  const event = msgEvent({ type: "rb:score-request", handle: "yooksiktir", token: "wrong-token" });
+  const event = msgEvent({
+    type: "rb:score-request",
+    handle: "yooksiktir",
+    token: "wrong-token",
+  });
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), false);
 });
 
 test("isTrustedRagebaitMessage: rejects a message carrying a top-level result field", () => {
-  const event = msgEvent({ type: "rb:score-request", handle: "yooksiktir", token: TOKEN, result: "high" });
+  const event = msgEvent({
+    type: "rb:score-request",
+    handle: "yooksiktir",
+    token: TOKEN,
+    result: "high",
+  });
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), false);
 });
 
 test("isTrustedRagebaitMessage: rejects a message carrying a band field", () => {
-  const event = msgEvent({ type: "rb:score-request", handle: "yooksiktir", token: TOKEN, band: "high" });
+  const event = msgEvent({
+    type: "rb:score-request",
+    handle: "yooksiktir",
+    token: TOKEN,
+    band: "high",
+  });
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), false);
 });
 
 test("isTrustedRagebaitMessage: rejects a message carrying a percent field", () => {
-  const event = msgEvent({ type: "rb:score-request", handle: "yooksiktir", token: TOKEN, percent: 87 });
+  const event = msgEvent({
+    type: "rb:score-request",
+    handle: "yooksiktir",
+    token: TOKEN,
+    percent: 87,
+  });
   assert.equal(isTrustedRagebaitMessage(event, ORIGIN, TOKEN), false);
 });
 
@@ -65,14 +96,21 @@ test("isTrustedRagebaitMessage: rejects a score field nested inside the payload"
 });
 
 test("isTrustedRagebaitMessage: rejects a non-object payload", () => {
-  assert.equal(isTrustedRagebaitMessage(msgEvent("rb:score-request"), ORIGIN, TOKEN), false);
+  assert.equal(
+    isTrustedRagebaitMessage(msgEvent("rb:score-request"), ORIGIN, TOKEN),
+    false,
+  );
   assert.equal(isTrustedRagebaitMessage(msgEvent(null), ORIGIN, TOKEN), false);
 });
 
 // --- parseScoreRequest -------------------------------------------------------
 
 test("parseScoreRequest: returns a lower-cased handle and the token", () => {
-  const parsed = parseScoreRequest({ type: "rb:score-request", handle: "Yooksiktir", token: TOKEN });
+  const parsed = parseScoreRequest({
+    type: "rb:score-request",
+    handle: "Yooksiktir",
+    token: TOKEN,
+  });
   assert.deepEqual(parsed, { handle: "yooksiktir", token: TOKEN });
 });
 
@@ -81,20 +119,47 @@ test("parseScoreRequest: returns null when type is missing", () => {
 });
 
 test("parseScoreRequest: returns null when type is not in the allowlist", () => {
-  assert.equal(parseScoreRequest({ type: "rb:unknown", handle: "yooksiktir", token: TOKEN }), null);
+  assert.equal(
+    parseScoreRequest({
+      type: "rb:unknown",
+      handle: "yooksiktir",
+      token: TOKEN,
+    }),
+    null,
+  );
 });
 
 test("parseScoreRequest: returns null when the handle is not 1-15 chars", () => {
-  assert.equal(parseScoreRequest({ type: "rb:score-request", handle: "", token: TOKEN }), null);
-  assert.equal(parseScoreRequest({ type: "rb:score-request", handle: "x".repeat(16), token: TOKEN }), null);
+  assert.equal(
+    parseScoreRequest({ type: "rb:score-request", handle: "", token: TOKEN }),
+    null,
+  );
+  assert.equal(
+    parseScoreRequest({
+      type: "rb:score-request",
+      handle: "x".repeat(16),
+      token: TOKEN,
+    }),
+    null,
+  );
 });
 
 test("parseScoreRequest: returns null when the handle contains a slash", () => {
-  assert.equal(parseScoreRequest({ type: "rb:score-request", handle: "yoksiktir/following", token: TOKEN }), null);
+  assert.equal(
+    parseScoreRequest({
+      type: "rb:score-request",
+      handle: "yoksiktir/following",
+      token: TOKEN,
+    }),
+    null,
+  );
 });
 
 test("parseScoreRequest: returns null when the token is missing", () => {
-  assert.equal(parseScoreRequest({ type: "rb:score-request", handle: "yooksiktir" }), null);
+  assert.equal(
+    parseScoreRequest({ type: "rb:score-request", handle: "yooksiktir" }),
+    null,
+  );
 });
 
 test("parseScoreRequest: returns null for a non-object payload", () => {
@@ -119,13 +184,25 @@ test("escapeHtml: leaves ordinary text untouched", () => {
 // --- HANDLE_RE ----------------------------------------------------------------
 
 test("HANDLE_RE: accepts valid handles", () => {
-  for (const h of ["a", "yoksiktir", "a_b", "ABC", "user_123", "x".repeat(15)]) {
+  for (
+    const h of ["a", "yoksiktir", "a_b", "ABC", "user_123", "x".repeat(15)]
+  ) {
     assert.equal(HANDLE_RE.test(h), true, `expected accept: ${h}`);
   }
 });
 
 test("HANDLE_RE: rejects invalid handles", () => {
-  for (const h of ["", "x".repeat(16), "a/following", "has space", "a-b", "@user", "ünïcode"]) {
+  for (
+    const h of [
+      "",
+      "x".repeat(16),
+      "a/following",
+      "has space",
+      "a-b",
+      "@user",
+      "ünïcode",
+    ]
+  ) {
     assert.equal(HANDLE_RE.test(h), false, `expected reject: ${h}`);
   }
 });

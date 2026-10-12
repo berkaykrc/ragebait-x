@@ -39,7 +39,9 @@ export function bootContent({ doc, win, browserApi }) {
     browserApi.runtime.sendMessage({ type: "rb:config" }),
   ).then((res) => {
     token = typeof res?.token === "string" ? res.token : null;
-    const config = res?.config && typeof res.config === "object" ? res.config : {};
+    const config = res?.config && typeof res.config === "object"
+      ? res.config
+      : {};
 
     const tag = doc.createElement("script");
     tag.id = CONFIG_TAG_ID;

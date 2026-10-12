@@ -86,11 +86,15 @@ export function isTrustedRagebaitMessage(event, expectedOrigin, expectedToken) {
   const data = event.data;
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
 
-  if (typeof data.type !== "string" || !ALLOWED_MSG_TYPES.has(data.type)) return false;
+  if (typeof data.type !== "string" || !ALLOWED_MSG_TYPES.has(data.type)) {
+    return false;
+  }
 
   // A missing/!string token never matches, even if expectedToken is nullish.
   if (typeof data.token !== "string" || data.token.length === 0) return false;
-  if (typeof expectedToken !== "string" || expectedToken.length === 0) return false;
+  if (typeof expectedToken !== "string" || expectedToken.length === 0) {
+    return false;
+  }
   if (data.token !== expectedToken) return false;
 
   if (containsScoreField(data)) return false;
@@ -105,9 +109,13 @@ export function isTrustedRagebaitMessage(event, expectedOrigin, expectedToken) {
 export function parseScoreRequest(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
 
-  if (typeof data.type !== "string" || !ALLOWED_MSG_TYPES.has(data.type)) return null;
+  if (typeof data.type !== "string" || !ALLOWED_MSG_TYPES.has(data.type)) {
+    return null;
+  }
 
-  if (typeof data.handle !== "string" || !HANDLE_RE.test(data.handle)) return null;
+  if (typeof data.handle !== "string" || !HANDLE_RE.test(data.handle)) {
+    return null;
+  }
 
   if (typeof data.token !== "string" || data.token.length === 0) return null;
 

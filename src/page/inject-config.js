@@ -20,13 +20,17 @@ function readOnce(doc) {
   } catch {
     return EMPTY;
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return EMPTY;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return EMPTY;
+  }
 
-  const token = typeof parsed.token === "string" && parsed.token.length > 0 ? parsed.token : null;
-  const config =
-    parsed.config && typeof parsed.config === "object" && !Array.isArray(parsed.config)
-      ? parsed.config
-      : {};
+  const token = typeof parsed.token === "string" && parsed.token.length > 0
+    ? parsed.token
+    : null;
+  const config = parsed.config && typeof parsed.config === "object" &&
+      !Array.isArray(parsed.config)
+    ? parsed.config
+    : {};
 
   return { token, config };
 }

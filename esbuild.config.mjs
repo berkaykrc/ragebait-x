@@ -9,7 +9,7 @@
 // it just carries no manifest. See Task 1 ruling in the ledger.
 
 import { build } from "esbuild";
-import { copyFile, mkdir, rm, access } from "node:fs/promises";
+import { access, copyFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -77,9 +77,14 @@ for (const target of TARGETS) {
     outdir,
     target: ["firefox121"],
     logLevel: "warning",
-    plugins: [copyOptionsHtmlPlugin(outdir), copyManifestPlugin(target, outdir)],
+    plugins: [
+      copyOptionsHtmlPlugin(outdir),
+      copyManifestPlugin(target, outdir),
+    ],
   });
 
   const hasManifest = await exists(path.join(outdir, "manifest.json"));
-  console.log(`built dist-${target}/ (manifest: ${hasManifest ? "yes" : "absent"})`);
+  console.log(
+    `built dist-${target}/ (manifest: ${hasManifest ? "yes" : "absent"})`,
+  );
 }
