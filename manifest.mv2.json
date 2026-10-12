@@ -2,11 +2,33 @@
   "manifest_version": 2,
   "name": "Ragebait Detector",
   "version": "0.1.0",
+  "description": "Shows a ragebait / engagement-bait band inside X (Twitter) hovercards, based on an account's replies.",
   "browser_specific_settings": {
     "gecko": {
       "id": "ragebait-detector@berkaykrc.local",
       "strict_min_version": "121.0"
     }
   },
-  "permissions": ["storage"]
+  "permissions": [
+    "storage",
+    "https://api.fxtwitter.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": ["page.js"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
 }
