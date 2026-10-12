@@ -5,3 +5,5 @@ web-ext-artifacts/
 .env.*
 .DS_Store
 .superpowers/
+dist-mv2/
+dist-mv3/

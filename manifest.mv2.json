@@ -1,0 +1,12 @@
+{
+  "manifest_version": 2,
+  "name": "Ragebait Detector",
+  "version": "0.1.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ragebait-detector@berkaykrc.local",
+      "strict_min_version": "121.0"
+    }
+  },
+  "permissions": ["storage"]
+}
