@@ -5,11 +5,11 @@ Firefox MV2 extension. Vanilla JS ES modules, no TypeScript. Node pinned by
 
 ## Node is already on PATH
 
-`node` and `npm` resolve to `~/.nvm/versions/node/v22.13.0/bin/*` in the
-agent's shell. **Do not prefix commands with `source ~/.nvm/nvm.sh` or
-`nvm use` — it is redundant, it hides errors behind `2>/dev/null`, and it
-bloats every command.** Just run `npm test`. `.nvmrc` exists for human
-shells that go through nvm themselves.
+`node` and `npm` resolve to `~/.nvm/versions/node/v22.13.0/bin/*` in the agent's
+shell. **Do not prefix commands with `source ~/.nvm/nvm.sh` or `nvm use` — it is
+redundant, it hides errors behind `2>/dev/null`, and it bloats every command.**
+Just run `npm test`. `.nvmrc` exists for human shells that go through nvm
+themselves.
 
 ## Commands
 
