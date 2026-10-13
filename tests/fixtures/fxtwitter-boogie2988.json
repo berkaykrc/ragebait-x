@@ -1,0 +1,29 @@
+{
+  "code": 200,
+  "results": [
+    {
+      "id": "200",
+      "text": "someone else reply",
+      "lang": "en",
+      "author": { "screen_name": "random" },
+      "replying_to": { "screen_name": "kviciemre" },
+      "likes": 1,
+      "replies": 0,
+      "views": 10,
+      "created_timestamp": 1757000010
+    },
+    {
+      "id": "201",
+      "text": "boogie reply",
+      "lang": "en",
+      "author": { "screen_name": "Boogie2988" },
+      "replying_to": { "screen_name": "kviciemre" },
+      "likes": 3,
+      "replies": 1,
+      "views": 20,
+      "created_timestamp": 1757000011,
+      "in_reply_to_status_id": "p2"
+    }
+  ],
+  "cursor": {}
+}
