@@ -75,6 +75,33 @@ test("content: injects the page bundle from the extension URL", async () => {
   );
 });
 
+test("content: still provisions the page world when the background has no rb:config listener", async () => {
+  // Task 8 ships the background that answers rb:config. Until then (and after
+  // any background failure), booting the rendering must not depend on it:
+  // rendering the line needs no token at all (D13, src/page/index.js header).
+  // Today this test is RED: a rejected sendMessage kills the whole inject
+  // chain and the extension renders nothing on x.com.
+  const dom = makeDom();
+  const browserApi = makeBrowser();
+  browserApi.runtime.sendMessage = () =>
+    Promise.reject(new Error("no matching message listener"));
+  const { doc } = { doc: dom.window.document };
+  bootContent({ doc, win: dom.window, browserApi });
+  await settle();
+
+  const tag = doc.getElementById("ragebait-config");
+  assert.ok(
+    tag,
+    "expected the config tag to be injected even without a background answer",
+  );
+  assert.deepEqual(JSON.parse(tag.textContent), { token: null, config: {} });
+  const script = doc.querySelector('script[src="moz-extension://abc/page.js"]');
+  assert.ok(
+    script,
+    "expected page.js to be injected even without a background answer",
+  );
+});
+
 test("content: registers a storage.onChanged listener", async () => {
   const { browserApi } = boot();
   await settle();

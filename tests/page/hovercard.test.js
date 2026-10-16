@@ -102,6 +102,34 @@ test("hovercard: a missing layers root warns once and never breaks", () => {
   assert.doesNotThrow(() => observer.dispose());
 });
 
+test("hovercard: the observer wakes up when #layers mounts after boot", async () => {
+  // Production timing: page.js is injected at document_start, but X mounts
+  // #layers much later. The observer must wait for the root instead of
+  // permanently giving up ("not watching" is only for a crippling case).
+  const doc = makeDoc("<main></main>");
+  const { warns, warn } = warnCollector();
+
+  const observer = createHovercardObserver({
+    document: doc,
+    consoleLike: { warn },
+  });
+  assert.equal(warns.length, 1); // one boot note, no more later
+  assert.equal(observer.cards.size, 0);
+
+  // The react root mounts, then a card is hovered.
+  const layers = doc.createElement("div");
+  layers.id = "layers";
+  doc.body.appendChild(layers);
+  layers.appendChild(doc.createElement("div")).innerHTML = cardHtml();
+  await flush();
+
+  assert.equal(observer.cards.size, 1, "expected the card to be picked up");
+  const line = doc.querySelector(".ragebait-line");
+  assert.ok(line, "expected the analyzing line to render");
+  assert.equal(warns.length, 1, "recovery must not warn again");
+  assert.doesNotThrow(() => observer.dispose());
+});
+
 // --- card open ----------------------------------------------------------------
 
 test("hovercard: an opening card renders the analyzing line at the CP4T point", async () => {

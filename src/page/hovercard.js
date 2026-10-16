@@ -86,24 +86,81 @@ export function createHovercardObserver({
   consoleLike = console,
   waitForCard = defaultWaitForCard,
 }) {
-  /** Handles with a live line, for the response router (see index.js). */
-  const cards = new Map();
-  /** Cards already processed, so a re-added card does not double-render. */
-  const seen = new WeakSet();
-
   // The observer belongs to the document it watches, not to whatever global
   // scope happens to exist.
   const ObserverCtor = doc.defaultView?.MutationObserver ??
     (typeof MutationObserver !== "undefined" ? MutationObserver : null);
 
-  const root = doc.querySelector(SELECTORS.layers);
-  if (!root || !ObserverCtor) {
-    // Missing root (or no observer support): nothing to watch, one warning,
-    // zero breakage.
+  /** Handles with a live line, for the response router (see index.js). */
+  const cards = new Map();
+  /** Cards already processed, so a re-added card does not double-render. */
+  const seen = new WeakSet();
+
+  /**
+   * Watch one mounted #layers root for hovercards.
+   *
+   * @param {Element} root
+   */
+  function watchLayers(root) {
+    const inner = new ObserverCtor((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.nodeType !== 1) continue; // elements only
+          const card = node.matches?.(SELECTORS.hoverCard)
+            ? node
+            : node.querySelector?.(SELECTORS.hoverCard);
+          if (card) openCard(card);
+        }
+      }
+    });
+    inner.observe(root, { childList: true, subtree: true });
+    return inner;
+  }
+
+  if (!ObserverCtor) {
+    // No observer support: nothing to watch, one warning, zero breakage.
     consoleLike.warn(
       `ragebait: hovercard root ${SELECTORS.layers} not available; not watching`,
     );
     return { dispose: () => {}, cards };
+  }
+
+  const root = doc.querySelector(SELECTORS.layers);
+  let inner = root ? watchLayers(root) : null;
+  let rootWatcher = null;
+
+  if (!root) {
+    // Production timing: page.js boots at document_start, but X mounts
+    // #layers much later. Wait for it instead of giving up: one note now,
+    // then a document-level watcher installs the real observer when (and if)
+    // the root appears. If it never appears, this watcher simply idles.
+    consoleLike.warn(
+      `ragebait: ${SELECTORS.layers} not mounted yet; waiting for it`,
+    );
+    rootWatcher = new ObserverCtor((records) => {
+      const mounted = doc.querySelector(SELECTORS.layers);
+      if (mounted && !inner) {
+        rootWatcher.disconnect();
+        rootWatcher = null;
+        inner = watchLayers(mounted);
+      }
+      if (inner) {
+        // The same batch may already carry the first cards (X's mount and a
+        // hover can land in one synchronous JS turn). Those nodes were
+        // delivered to the root watcher, not to inner, so replay them here;
+        // openCard's `seen` set makes a double notification harmless.
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            const card = node.matches?.(SELECTORS.hoverCard)
+              ? node
+              : node.querySelector?.(SELECTORS.hoverCard);
+            if (card) openCard(card);
+          }
+        }
+      }
+    });
+    rootWatcher.observe(doc, { childList: true, subtree: true });
   }
 
   function openCard(card) {
@@ -149,22 +206,11 @@ export function createHovercardObserver({
     );
   }
 
-  const observer = new ObserverCtor((records) => {
-    for (const record of records) {
-      for (const node of record.addedNodes) {
-        if (node.nodeType !== 1) continue; // elements only
-        const card = node.matches?.(SELECTORS.hoverCard)
-          ? node
-          : node.querySelector?.(SELECTORS.hoverCard);
-        if (card) openCard(card);
-      }
-    }
-  });
-
-  observer.observe(root, { childList: true, subtree: true });
-
   return {
     cards,
-    dispose: () => observer.disconnect(),
+    dispose: () => {
+      inner?.disconnect();
+      rootWatcher?.disconnect();
+    },
   };
 }

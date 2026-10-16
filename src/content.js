@@ -34,10 +34,12 @@ export function bootContent({ doc, win, browserApi }) {
     getToken,
   });
 
-  // Ask the background for the token + settings, then provision the page world.
-  void Promise.resolve(
-    browserApi.runtime.sendMessage({ type: "rb:config" }),
-  ).then((res) => {
+  // Ask the background for the token + settings, then provision the page
+  // world. The background that answers rb:config ships in Task 8; until then
+  // (and after any failure) the page world must still boot — rendering the
+  // line needs no token at all (D13), and a dead injection chain would leave
+  // the extension invisible on x.com. Failure mode: token null, config {}.
+  const provisionPageWorld = (res) => {
     token = typeof res?.token === "string" ? res.token : null;
     const config = res?.config && typeof res.config === "object"
       ? res.config
@@ -55,7 +57,11 @@ export function bootContent({ doc, win, browserApi }) {
     const pageScript = doc.createElement("script");
     pageScript.src = browserApi.runtime.getURL("page.js");
     (doc.head ?? doc.documentElement).appendChild(pageScript);
-  });
+  };
+
+  void Promise.resolve(
+    browserApi.runtime.sendMessage({ type: "rb:config" }),
+  ).then(provisionPageWorld, () => provisionPageWorld(undefined));
 
   // Settings changed -> tell the page world, with the token echoed.
   browserApi.storage.onChanged.addListener((changes, area) => {
