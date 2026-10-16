@@ -43,75 +43,128 @@ const STATE_COPY = {
   loading: "analyzing\u2026",
   insufficient: "insufficient data",
   error: "analysis failed",
-  quota: "quota exceeded",
+  quota: "quota exceeded \u2014 retry tomorrow",
 };
 
 const ELLIPSIS = "  \u00b7\u00b7\u00b7";
+
+/** The stale indicator's qualifier and class modifier. */
+const STALE_QUALIFIER = " (stale)";
+const STALE_CLS = ` ${LINE_CLASS}-stale`;
 
 /** First letter upper-cased: "low" -> "Low". */
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** The spec's shape: cls + text for the line, an optional band sub-element. */
+const baseSpec = (cls, text) => ({ cls, text, band: null, sub: null });
+
+const noticeSpec = (key) => () =>
+  baseSpec(`${LINE_CLASS} ${LINE_CLASS}-notice`, STATE_COPY[key]);
+
+/** A known band key on `s`, or null (hostile/unknown bands never render). */
+function knownBand(s) {
+  return typeof s.band === "string" && Object.hasOwn(BAND_STYLES, s.band)
+    ? s.band
+    : null;
+}
+
+/**
+ * The band-carrying states (result | estimated | stale). Only a known band
+ * renders; anything else falls through to the error copy.
+ */
+function bandSpec(s) {
+  const band = knownBand(s);
+  if (!band) return noticeSpec("error")();
+
+  const style = BAND_STYLES[band];
+  const label = capitalize(band);
+  const hasNumber = typeof s.percent === "number" &&
+    Number.isFinite(s.percent);
+
+  let text;
+  if (hasNumber) {
+    // The calibrated number, shown only once /config's showNumber gate
+    // passes (plan Part 1 §1; the gate itself is Task 15).
+    text = `Ragebait: ${label} \u00b7 %${Math.round(s.percent)}`;
+  } else {
+    // No number yet: an estimated answer, not a definitive one.
+    const qualifier = s.state === "estimated" ? " (no model)" : "";
+    text = `Ragebait: ${label}(estimated${qualifier})${ELLIPSIS}`;
+  }
+  return { cls: `${LINE_CLASS} ${style.cls}`, text, band, sub: null };
+}
+
+/**
+ * Quota: the notice copy, with the heuristic band still rendered beneath it
+ * (plan §6 table; Task 8 test f). The band lives in `sub`, so the outer
+ * notice line never wears a band class itself.
+ */
+function quotaSpec(s) {
+  const spec = noticeSpec("quota")();
+  const band = knownBand(s);
+  if (band) {
+    spec.sub = {
+      cls: BAND_STYLES[band].cls,
+      text: capitalize(band),
+      color: BAND_STYLES[band].color,
+    };
+  }
+  return spec;
+}
+
+/**
+ * The seven rendered states (plan Part 1 §6). Each builder maps a state
+ * object to the line's fixed spec; lineSpec dispatches through this map, so
+ * a state not in it -- including markup smuggled in as a state -- can only
+ * ever render the error copy.
+ */
+export const STATE_MARKUP = Object.freeze({
+  loading: () =>
+    baseSpec(
+      `${LINE_CLASS} ${LINE_CLASS}-loading`,
+      `Ragebait: ${STATE_COPY.loading}`,
+    ),
+  result: bandSpec,
+  estimated: bandSpec,
+  stale: bandSpec,
+  insufficient: noticeSpec("insufficient"),
+  error: noticeSpec("error"),
+  quota: quotaSpec,
+});
+
+/** Append the stale indicator to a built spec. */
+function withStaleIndicator(spec) {
+  return {
+    ...spec,
+    cls: `${spec.cls}${STALE_CLS}`,
+    text: `${spec.text}${STALE_QUALIFIER}`,
+  };
+}
+
 /**
  * What a state looks like: a class list and the line's text. Pure data, no
  * DOM, no HTML. Every branch returns a literal from this module.
  *
- * @param {{state: string, band?: string, percent?: number|null}} state
- * @returns {{cls: string, text: string, band: string|null}}
+ * STALE RULING: there is no single STALE_AFTER_MS. cache.js marks an
+ * envelope stale once it is past 50% of ITS state's TTL
+ * (STALE_AFTER_FRACTION); the caller forwards `envelope.stale` here and the
+ * indicator is added when it is true. The `stale` state forces it on.
+ *
+ * @param {{state: string, band?: string, percent?: number|null, stale?: boolean}} state
+ * @returns {{cls: string, text: string, band: string|null, sub: {cls: string, text: string, color: string}|null}}
  */
 export function lineSpec(state) {
   const s = state && typeof state === "object" ? state : {};
-  const cls = LINE_CLASS;
-
-  if (s.state === "loading") {
-    return {
-      cls: `${cls} ${cls}-loading`,
-      text: `Ragebait: ${STATE_COPY.loading}`,
-      band: null,
-    };
-  }
-
-  // Only these two states carry a band, and the band must be a known key.
-  if (
-    (s.state === "result" || s.state === "estimated") &&
-    typeof s.band === "string" &&
-    Object.hasOwn(BAND_STYLES, s.band)
-  ) {
-    const style = BAND_STYLES[s.band];
-    const label = capitalize(s.band);
-    const hasNumber = typeof s.percent === "number" &&
-      Number.isFinite(s.percent);
-
-    if (hasNumber) {
-      // The calibrated number, shown only once /config's showNumber gate
-      // passes (plan Part 1 §1; the gate itself is Task 15).
-      return {
-        cls: `${cls} ${style.cls}`,
-        text: `Ragebait: ${label} \u00b7 %${Math.round(s.percent)}`,
-        band: s.band,
-      };
-    }
-
-    // No number yet: an estimated answer, not a definitive one.
-    const qualifier = s.state === "estimated" ? " (no model)" : "";
-    return {
-      cls: `${cls} ${style.cls}`,
-      text: `Ragebait: ${label}(estimated${qualifier})${ELLIPSIS}`,
-      band: s.band,
-    };
-  }
-
-  if (s.state === "insufficient" || s.state === "quota") {
-    return {
-      cls: `${cls} ${cls}-notice`,
-      text: STATE_COPY[s.state],
-      band: null,
-    };
-  }
-
-  // error, and anything unrecognized (including markup smuggled in as a state).
-  return { cls: `${cls} ${cls}-notice`, text: STATE_COPY.error, band: null };
+  const key = typeof s.state === "string" &&
+      Object.hasOwn(STATE_MARKUP, s.state)
+    ? s.state
+    : "error";
+  const spec = STATE_MARKUP[key](s);
+  return s.stale === true || s.state === "stale"
+    ? withStaleIndicator(spec)
+    : spec;
 }
 
 /**
@@ -127,7 +180,11 @@ export function buildLineMarkup(state) {
   const spec = lineSpec(state);
   const color = spec.band ? BAND_STYLES[spec.band].color : "";
   const style = color ? ` style="color:${color}"` : "";
-  return `<span class="${spec.cls}"${style}>${spec.text}</span>`;
+  // Quota's heuristic band beneath the notice (sub). All literals.
+  const sub = spec.sub
+    ? `<span class="${spec.sub.cls}" style="color:${spec.sub.color}">${spec.sub.text}</span>`
+    : "";
+  return `<span class="${spec.cls}"${style}>${spec.text}${sub}</span>`;
 }
 
 /**
@@ -142,8 +199,16 @@ export function createLineElement(doc, state) {
   const spec = lineSpec(state);
   const el = doc.createElement("span");
   el.className = spec.cls;
+  // textContent first: setting it would wipe any child appended before it.
   el.textContent = spec.text;
   if (spec.band) el.style.color = BAND_STYLES[spec.band].color;
+  if (spec.sub) {
+    const band = doc.createElement("span");
+    band.className = spec.sub.cls;
+    band.textContent = spec.sub.text;
+    if (spec.sub.color) band.style.color = spec.sub.color;
+    el.appendChild(band);
+  }
   return el;
 }
 
