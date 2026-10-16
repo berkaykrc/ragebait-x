@@ -37,7 +37,6 @@ function keyFor(mv, fv, handle) {
 function parseEnvelope(raw) {
   let obj = raw;
   if (typeof raw === "string") {
-    if (raw === null || raw === undefined) return null;
     try {
       obj = JSON.parse(raw);
     } catch {
