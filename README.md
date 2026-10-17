@@ -1,14 +1,15 @@
 # Ragebait Detector
 
 A Firefox extension (MV2) that shows a ragebait / engagement-bait band inside X
-(Twitter) hovercards, based on the target account's replies. **v0.1.0-alpha.**
+(Twitter) hovercards, based on the target account's replies.
 
 Heuristic-only in this release: no AI layer, no cloud calls, no API keys. The
 scoring weights are initial placeholders pending calibration (Plan 3).
 
 ## Status
 
-- Version: `0.1.0-alpha`
+- Latest release: [Releases](../../releases/latest). The version of record is
+  `version` in `manifest.mv2.json`, which the release workflow bumps.
 - Mode: heuristic only (`MODEL_VERSION = "h1"`, `FEATURE_VERSION = "f1"`)
 - Browser: Firefox (MV2). Chrome/MV3 is post-v1 and unverified.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)

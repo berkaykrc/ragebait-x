@@ -1,4 +1,4 @@
-# Manual QA matrix (v0.1.0-alpha)
+# Manual QA matrix
 
 Heuristic mode only. Run against a Firefox Nightly / Developer Edition /
 unbranded build with the extension loaded from `dist-mv2/`. Record the result
