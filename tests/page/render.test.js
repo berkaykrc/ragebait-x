@@ -21,7 +21,9 @@ test("render: a result with no percent shows the band and the estimated label", 
     band: "high",
     percent: null,
   });
-  assert.match(html, /Ragebait: High/);
+  // The markup nests tag/label/value parts now; the text is unchanged.
+  assert.match(html, />Ragebait: </); // tag part
+  assert.match(html, />High</); // label part
   assert.match(html, /estimated/);
   assert.match(html, /rb-low|rb-medium|rb-high/);
   assert.match(html, /rb-high/);
@@ -29,7 +31,8 @@ test("render: a result with no percent shows the band and the estimated label", 
 
 test("render: the estimated state carries the no-model label", () => {
   const html = buildLineMarkup({ state: "estimated", band: "medium" });
-  assert.match(html, /Ragebait: Medium/);
+  assert.match(html, />Ragebait: </); // tag part
+  assert.match(html, />Medium</); // label part
   assert.match(html, /estimated \(no model\)/);
   assert.match(html, /rb-medium/);
 });
@@ -78,7 +81,8 @@ test("render: BAND_STYLES holds exactly the three band keys", () => {
 
 test("render: the percent renders beside the band when present", () => {
   const html = buildLineMarkup({ state: "result", band: "low", percent: 12 });
-  assert.match(html, /Ragebait: Low/);
+  assert.match(html, />Ragebait: </); // tag part
+  assert.match(html, />Low</); // label part
   assert.match(html, /12/);
   assert.doesNotMatch(html, /estimated/);
 });
