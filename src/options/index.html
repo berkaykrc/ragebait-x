@@ -32,38 +32,67 @@
   <body>
     <h1>Ragebait Detector settings</h1>
 
-    <label for="mode">Mode</label>
-    <select id="mode">
-      <option value="heuristic">Heuristic (v1)</option>
-      <option value="proxy">Proxy (Phase 2)</option>
-      <option value="byok">Bring your own key (Phase 2)</option>
-    </select>
+    <fieldset>
+      <legend>Mode</legend>
+      <label for="mode-heuristic"><input
+          type="radio"
+          name="mode"
+          value="heuristic"
+          id="mode-heuristic"
+          checked
+        > Heuristic (v1)</label>
+      <label for="mode-proxy"><input
+          type="radio"
+          name="mode"
+          value="proxy"
+          id="mode-proxy"
+        > Proxy (Phase 2)</label>
+      <label for="mode-byok"><input
+          type="radio"
+          name="mode"
+          value="byok"
+          id="mode-byok"
+        > Bring your own key (Phase 2)</label>
+    </fieldset>
 
-    <div id="consent"></div>
-    <label><input type="checkbox" id="consentAccepted"> I accept the data
-      handling above</label>
+    <div id="mode-extra"></div>
 
-    <div id="proxyFields">
+    <div id="consent-ai" hidden>
+      <label for="consentAccepted"><input
+          type="checkbox"
+          name="consentAccepted"
+          id="consentAccepted"
+        > I accept the data handling above</label>
+    </div>
+
+    <div id="proxy-fields" style="display: none">
       <label for="proxyUrl">Proxy URL</label>
-      <input id="proxyUrl" type="url">
+      <input type="url" name="proxyUrl" id="proxyUrl">
     </div>
 
-    <div id="byokFields">
+    <div id="byok-fields" style="display: none">
       <label for="byokEndpoint">BYOK endpoint</label>
-      <input id="byokEndpoint" type="url">
+      <input type="url" name="byokEndpoint" id="byokEndpoint">
       <label for="apiKey">API key</label>
-      <input id="apiKey" type="password">
+      <input type="password" name="apiKey" id="apiKey">
     </div>
 
-    <label for="misclassificationEmail">Misclassification report email</label>
-    <input id="misclassificationEmail" type="email">
+    <label for="misclassification-email">Misclassification report email</label>
+    <input type="email" id="misclassification-email">
 
     <p>
-      Profiles analysed today: <span id="stats">0</span> / <span id="limit"
-      >0</span>
+      Profiles analysed today: <span id="quota-used">0</span> / <span
+        id="quota-limit"
+      >200</span>
     </p>
 
-    <p><a id="reportLink" href="#">Report a misclassification</a></p>
+    <p>
+      <a id="misclassification-mailto" href="#">Report a misclassification</a>
+    </p>
+
+    <span id="status"></span>
+
+    <button id="save-btn">Save</button>
 
     <script src="options.js"></script>
   </body>

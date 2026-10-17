@@ -1,4 +1,4 @@
-// Options page (Task 9).
+// Options page (Task 5).
 //
 // Pure settings logic (loadSettings / saveSettings) plus the settings UI. The
 // UI boots only in the extension options page (`browser` + `document` present);
@@ -143,75 +143,81 @@ function isExtensionPage() {
   return typeof browser !== "undefined" && typeof document !== "undefined";
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-/** Adapt real browser.storage.local to the storage seam (unwrap {key: value}). */
-function browserStorageAdapter() {
-  return {
-    async get(key) {
-      const res = await browser.storage.local.get(key);
-      return res &&
-          Object.prototype.hasOwnProperty.call(res, key)
-        ? res[key]
-        : null;
-    },
-    async set(key, value) {
-      await browser.storage.local.set({ [key]: value });
-    },
-  };
-}
-
-function readForm() {
-  const checked = document.querySelector('input[name="mode"]:checked');
-  const proxyUrl = document.querySelector('input[name="proxyUrl"]');
-  const byokEndpoint = document.querySelector('input[name="byokEndpoint"]');
-  const apiKey = document.querySelector('input[name="apiKey"]');
-  const consent = document.querySelector('input[name="consentAccepted"]');
+/** Read the form state from `doc` (defaults to globalThis.document). */
+export function readForm(doc = globalThis.document) {
+  const checked = doc.querySelector('input[name="mode"]:checked');
+  const proxyUrl = doc.querySelector('input[name="proxyUrl"]');
+  const byokEndpoint = doc.querySelector('input[name="byokEndpoint"]');
+  const apiKey = doc.querySelector('input[name="apiKey"]');
+  const consent = doc.querySelector('input[name="consentAccepted"]');
+  const email = doc.getElementById("misclassification-email");
   return {
     mode: checked ? checked.value : "heuristic",
     consentAccepted: !!consent && consent.checked,
     proxyUrl: proxyUrl ? proxyUrl.value : "",
     byokEndpoint: byokEndpoint ? byokEndpoint.value : "",
     apiKey: apiKey ? apiKey.value : "",
-    misclassificationEmail: "",
+    misclassificationEmail: email ? email.value : "",
   };
 }
 
-function applySettings(settings) {
-  const radios = document.querySelectorAll('input[name="mode"]');
+/** Fill the form from `settings`, then update mode UI. */
+export function applySettings(doc, settings) {
+  const radios = doc.querySelectorAll('input[name="mode"]');
   for (const radio of radios) {
     radio.checked = radio.value === settings.mode;
   }
-  const proxyUrl = document.querySelector('input[name="proxyUrl"]');
+  const proxyUrl = doc.querySelector('input[name="proxyUrl"]');
   if (proxyUrl) proxyUrl.value = settings.proxyUrl ?? "";
-  const byokEndpoint = document.querySelector('input[name="byokEndpoint"]');
+  const byokEndpoint = doc.querySelector('input[name="byokEndpoint"]');
   if (byokEndpoint) byokEndpoint.value = settings.byokEndpoint ?? "";
-  const apiKey = document.querySelector('input[name="apiKey"]');
+  const apiKey = doc.querySelector('input[name="apiKey"]');
   if (apiKey) apiKey.value = settings.apiKey ?? "";
-  const consent = document.querySelector('input[name="consentAccepted"]');
+  const consent = doc.querySelector('input[name="consentAccepted"]');
   if (consent) consent.checked = !!settings.consentAccepted;
-  updateModeUI(settings.mode);
+  const email = doc.getElementById("misclassification-email");
+  if (email) email.value = settings.misclassificationEmail ?? "";
+  updateModeUI(doc, settings.mode);
 }
 
-function updateModeUI(mode) {
+/** Toggle mode UI based on `mode`. */
+export function updateModeUI(doc, mode) {
   const isAI = mode === "proxy" || mode === "byok";
-  const extra = document.getElementById("mode-extra");
-  const consentAI = document.getElementById("consent-ai");
-  const proxyFields = document.getElementById("proxy-fields");
-  const byokFields = document.getElementById("byok-fields");
+  const extra = doc.getElementById("mode-extra");
+  const consentAI = doc.getElementById("consent-ai");
+  const proxyFields = doc.getElementById("proxy-fields");
+  const byokFields = doc.getElementById("byok-fields");
   if (extra) extra.classList.toggle("visible", isAI);
   if (consentAI) consentAI.hidden = !isAI;
   if (proxyFields) proxyFields.style.display = mode === "proxy" ? "" : "none";
   if (byokFields) byokFields.style.display = mode === "byok" ? "" : "none";
 }
 
+/** Pure: build a mailto link from an email address. */
+export function buildMailto(email) {
+  return {
+    href: `mailto:${email}?subject=${
+      encodeURIComponent("Ragebait Detector misclassification report")
+    }&body=${
+      encodeURIComponent(
+        "Account handle:\nBand (if any):\nWhy you think it is misclassified:\n",
+      )
+    }`,
+    label: `Report by email (${email})`,
+  };
+}
+
+/** Apply a mailto build result to `#misclassification-mailto` in `doc`. */
+export function updateMailto(doc, email) {
+  const link = doc.getElementById("misclassification-mailto");
+  if (!link) return;
+  const to = email || "ragebait-detector@example.com";
+  const linkData = buildMailto(to);
+  link.href = linkData.href;
+  link.textContent = linkData.label;
+}
+
+/** Load settings from storage and render the form. */
 async function loadAndRender() {
   const storage = isExtensionPage() ? browserStorageAdapter() : null;
   let settings;
@@ -220,10 +226,11 @@ async function loadAndRender() {
   } catch {
     settings = copySettings(DEFAULT_SETTINGS);
   }
-  applySettings(settings);
+  applySettings(document, settings);
   return settings;
 }
 
+/** Update quota readouts. */
 async function refreshQuota() {
   const usedEl = document.getElementById("quota-used");
   const limitEl = document.getElementById("quota-limit");
@@ -251,23 +258,10 @@ async function refreshQuota() {
   }
 }
 
-function updateMailto(email) {
-  const link = document.getElementById("misclassification-mailto");
-  if (!link) return;
-  const to = email || "ragebait-detector@example.com";
-  const subject = encodeURIComponent(
-    "Ragebait Detector misclassification report",
-  );
-  const body = encodeURIComponent(
-    "Account handle:\nBand (if any):\nWhy you think it is misclassified:\n",
-  );
-  link.href = `mailto:${to}?subject=${subject}&body=${body}`;
-  link.textContent = `Report by email (${escapeHtml(to)})`;
-}
-
+/** Handle the save button click. */
 async function handleSave() {
   const status = document.getElementById("status");
-  const settings = readForm();
+  const settings = readForm(document);
   const storage = browserStorageAdapter();
   try {
     await saveSettings(storage, settings);
@@ -283,19 +277,20 @@ async function handleSave() {
   }
 }
 
+/** Boot the options page in the extension page only. */
 async function boot() {
   if (!isExtensionPage()) return;
 
   const settings = await loadAndRender();
   refreshQuota();
-  updateMailto(settings.misclassificationEmail);
+  updateMailto(document, settings.misclassificationEmail);
 
   const saveBtn = document.getElementById("save-btn");
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
       await handleSave();
       const next = await loadAndRender();
-      updateMailto(next.misclassificationEmail);
+      updateMailto(document, next.misclassificationEmail);
       refreshQuota();
     });
   }
@@ -304,7 +299,7 @@ async function boot() {
   for (const radio of radios) {
     radio.addEventListener("change", () => {
       const checked = document.querySelector('input[name="mode"]:checked');
-      updateModeUI(checked ? checked.value : "heuristic");
+      updateModeUI(document, checked ? checked.value : "heuristic");
     });
   }
 }
