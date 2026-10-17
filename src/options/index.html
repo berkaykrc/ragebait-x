@@ -1,4 +1,70 @@
 <!DOCTYPE html>
-<meta charset="utf-8">
-<title>Ragebait</title>
-<script src="options.js"></script>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Ragebait settings</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 32rem;
+        margin: 2rem auto;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin: 0.75rem 0;
+      }
+      input, select {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      fieldset {
+        margin: 1rem 0;
+      }
+      #consent {
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+        background: #f5f5f5;
+        border-radius: 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Ragebait Detector settings</h1>
+
+    <label for="mode">Mode</label>
+    <select id="mode">
+      <option value="heuristic">Heuristic (v1)</option>
+      <option value="proxy">Proxy (Phase 2)</option>
+      <option value="byok">Bring your own key (Phase 2)</option>
+    </select>
+
+    <div id="consent"></div>
+    <label><input type="checkbox" id="consentAccepted"> I accept the data
+      handling above</label>
+
+    <div id="proxyFields">
+      <label for="proxyUrl">Proxy URL</label>
+      <input id="proxyUrl" type="url">
+    </div>
+
+    <div id="byokFields">
+      <label for="byokEndpoint">BYOK endpoint</label>
+      <input id="byokEndpoint" type="url">
+      <label for="apiKey">API key</label>
+      <input id="apiKey" type="password">
+    </div>
+
+    <label for="misclassificationEmail">Misclassification report email</label>
+    <input id="misclassificationEmail" type="email">
+
+    <p>
+      Profiles analysed today: <span id="stats">0</span> / <span id="limit"
+      >0</span>
+    </p>
+
+    <p><a id="reportLink" href="#">Report a misclassification</a></p>
+
+    <script src="options.js"></script>
+  </body>
+</html>
