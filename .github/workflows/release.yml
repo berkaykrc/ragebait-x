@@ -1,19 +1,33 @@
 # Release: sign with AMO and attach the .xpi to a GitHub Release.
 #
-# RELEASE PROCESS
-#   1. Bump "version" in manifest.mv2.json
-#   2. git commit -am "release: v0.1.1" && git tag v0.1.1 && git push --tags
-#   3. CI signs it and attaches the .xpi to the tag's Release page
-#   4. Install: Add-ons Manager -> gear -> Install Add-on From File
+# TWO WAYS TO RELEASE -- both are standard, both are supported:
+#
+#   1. Push a tag (reproducible, tied to an exact commit):
+#        npm run release patch        # bumps, commits, tags, pushes
+#        npm run release 0.3.0        # explicit version
+#      The tag push is what lands here. The tag IS the release identity.
+#
+#   2. Run workflow (on demand, no local commands):
+#        Actions tab -> release -> Run workflow -> type the version
+#      CI bumps manifest.mv2.json, commits, tags, pushes, signs, and creates
+#      the Release. Nothing to type in a terminal.
+#
+# Both paths converge on the same job below. Only the version-preparation step
+# differs; everything after it is identical.
+#
+# WHY CI CANNOT SELF-START: a workflow needs an external signal that a release
+# should happen. That signal is either a tag push or a button click. Everything
+# after the signal -- build, test, signing, attaching -- is done here.
 #
 # The AMO credentials live in GitHub Actions secrets (AMO_KEY, AMO_SECRET), not
 # in the repo and not on any machine. They are encrypted, masked in logs, and
 # unreadable from a clone.
 #
 # Scoped deliberately narrow:
-#   - Tag push only. Never runs on pull_request, so a fork PR can never reach
-#     a job that holds signing credentials.
-#   - `contents: write` only because this job attaches an asset to a Release.
+#   - Never runs on pull_request, so a fork PR can never reach a job holding
+#     signing credentials.
+#   - `contents: write` only because this job pushes a tag and attaches an
+#     asset to a Release. The workflow default is contents: read.
 #
 # See scripts/sign.sh for the credential-handling rules the local path shares.
 
@@ -23,12 +37,18 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, x.y.z (e.g. 0.1.1)"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  sign:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -40,7 +60,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # full tag history, for the version check below
+          fetch-depth: 0 # full tag history, so duplicate tags are detectable
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -51,21 +71,60 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      # Only on the button path: there is no tag yet, so establish one. This
+      # push uses the default GITHUB_TOKEN, and events created by GITHUB_TOKEN
+      # do not start new workflow runs -- so this cannot re-trigger this
+      # workflow. Using a PAT here would, and would loop.
+      - name: Bump, commit, tag and push (button path only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
 
-      # Do not sign a build whose tests fail.
-      - name: Test
-        run: npm test
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version '$VERSION' is not x.y.z (e.g. 0.1.1)"
+            exit 1
+          fi
 
-      # Catches the one mistake worth catching locally: tagging a new version
-      # while forgetting to bump "version" in manifest.mv2.json. AMO matches
-      # versions by that field, so the tag would be a lie.
+          tag="v${VERSION}"
+
+          # AMO rejects re-uploading a version it already holds, so a reused
+          # number is unrecoverable. Catch it before signing rather than after.
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "::error::tag ${tag} already exists on the remote"
+            echo "AMO will refuse this version. Choose a higher one."
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("fs");
+            const p = "manifest.mv2.json";
+            const src = fs.readFileSync(p, "utf8");
+            fs.writeFileSync(
+              p,
+              src.replace(/("version"\s*:\s*)"[^"]*"/, (_m, pre) => `${pre}"${process.env.VERSION}"`),
+            );
+          '
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.mv2.json
+          git commit -m "release: ${tag}"
+          git tag "${tag}"
+          git push origin HEAD
+          git push origin "${tag}"
+          echo "pushed ${tag}"
+
+      # Catches the one mistake worth catching on the tag path: tagging a new
+      # version while forgetting to bump "version" in manifest.mv2.json. AMO
+      # matches versions by that field, so the tag would be a lie.
       #
-      # It deliberately does NOT try to detect an already-signed version -- git
-      # tags and AMO versions are separate histories, and the local tags say
-      # nothing about what AMO holds. If you re-tag a version AMO already has,
-      # AMO's own error is the clearest possible report of that.
+      # It deliberately does NOT try to detect an already-signed version on the
+      # tag path -- git tags and AMO versions are separate histories, and local
+      # tags say nothing about what AMO holds. AMO's own error is the clearest
+      # report of that. The button path catches it above, where it can.
       - name: Assert the tag matches the manifest version
         run: |
           set -euo pipefail
@@ -73,10 +132,17 @@ jobs:
           expected="${GITHUB_REF_NAME#v}"
           if [ "$current" != "$expected" ]; then
             echo "::error::tag ${GITHUB_REF_NAME} does not match manifest version ${current}"
-            echo "Bump \"version\" in manifest.mv2.json and tag the new one."
+            echo "Bump \"version\" in manifest.mv2.json, or use the Run workflow button."
             exit 1
           fi
           echo "tag ${GITHUB_REF_NAME} matches manifest version ${current}"
+
+      - name: Build
+        run: npm run build
+
+      # Do not sign a build whose tests fail.
+      - name: Test
+        run: npm test
 
       - name: Sign with AMO
         run: ./scripts/sign.sh
