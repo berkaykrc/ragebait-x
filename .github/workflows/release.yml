@@ -1,0 +1,94 @@
+# Release: sign with AMO and attach the .xpi to a GitHub Release.
+#
+# RELEASE PROCESS
+#   1. Bump "version" in manifest.mv2.json
+#   2. git commit -am "release: v0.1.1" && git tag v0.1.1 && git push --tags
+#   3. CI signs it and attaches the .xpi to the tag's Release page
+#   4. Install: Add-ons Manager -> gear -> Install Add-on From File
+#
+# The AMO credentials live in GitHub Actions secrets (AMO_KEY, AMO_SECRET), not
+# in the repo and not on any machine. They are encrypted, masked in logs, and
+# unreadable from a clone.
+#
+# Scoped deliberately narrow:
+#   - Tag push only. Never runs on pull_request, so a fork PR can never reach
+#     a job that holds signing credentials.
+#   - `contents: write` only because this job attaches an asset to a Release.
+#
+# See scripts/sign.sh for the credential-handling rules the local path shares.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      AMO_KEY: ${{ secrets.AMO_KEY }}
+      AMO_SECRET: ${{ secrets.AMO_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full tag history, for the version check below
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Do not sign a build whose tests fail.
+      - name: Test
+        run: npm test
+
+      # Catches the one mistake worth catching locally: tagging a new version
+      # while forgetting to bump "version" in manifest.mv2.json. AMO matches
+      # versions by that field, so the tag would be a lie.
+      #
+      # It deliberately does NOT try to detect an already-signed version -- git
+      # tags and AMO versions are separate histories, and the local tags say
+      # nothing about what AMO holds. If you re-tag a version AMO already has,
+      # AMO's own error is the clearest possible report of that.
+      - name: Assert the tag matches the manifest version
+        run: |
+          set -euo pipefail
+          current="$(node -p 'JSON.parse(require("fs").readFileSync("manifest.mv2.json","utf8")).version')"
+          expected="${GITHUB_REF_NAME#v}"
+          if [ "$current" != "$expected" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match manifest version ${current}"
+            echo "Bump \"version\" in manifest.mv2.json and tag the new one."
+            exit 1
+          fi
+          echo "tag ${GITHUB_REF_NAME} matches manifest version ${current}"
+
+      - name: Sign with AMO
+        run: ./scripts/sign.sh
+
+      - name: Attach the signed .xpi to the Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          artifact="$(ls web-ext-artifacts/*.xpi)"
+          echo "attaching $(basename "$artifact")"
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            "$artifact"
