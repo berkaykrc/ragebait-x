@@ -4,7 +4,18 @@ import { access, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const css = await readFile("src/brand/brand.css", "utf8");
+const cssPath = path.join(
+  path.dirname(fileURLToPath(new URL(import.meta.url))),
+  "..",
+  "..",
+  "src",
+  "brand",
+  "brand.css",
+);
+const css = await readFile(cssPath, "utf8");
+// Strip CSS comments before scanning selectors — comments may contain dotted
+// paths (e.g. "docs/superpowers/...") that are not selectors.
+const cssForSelectors = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 // every selector is scoped to our own classes
 test("CSS: no data-testid selectors", () => {
@@ -14,7 +25,7 @@ test("CSS: no data-testid selectors", () => {
 // Allowlist: rb-* and ragebait-* are ours; `visible` and `error` are class
 // names that JS assigns, so they cannot be renamed to the rb- prefix.
 const ALLOWED = ["rb-", "ragebait-", "visible", "error"];
-const badSelectors = [...css.matchAll(/(^|[},])\s*([^{}@]+)\{/g)]
+const badSelectors = [...cssForSelectors.matchAll(/(^|[},])\s*([^{}@]+)\{/g)]
   .map((m) => m[2].trim())
   .filter((sel) =>
     /\.[a-zA-Z]/.test(sel) &&
