@@ -107,6 +107,93 @@
 .ragebait-line-notice {
   color: var(--rb-accent);
 }
+.rb-shell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.rb-head {
+  font-family: var(--rb-font-sans, system-ui, sans-serif);
+  font-size: 1.25rem;
+  color: var(--rb-ink);
+  line-height: 1;
+}
+
+.rb-card {
+  background: var(--rb-panel);
+  border: 1px solid var(--rb-line);
+  border-radius: 0.35rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.rb-label {
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-size: 0.6875rem;
+  line-height: 1.1;
+  color: var(--rb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.rb-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.rb-legend-item {
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 0.15em;
+  flex-shrink: 0;
+}
+
+.rb-legend-item.rb-legend-low {
+  --rb-band: var(--rb-band-low);
+}
+
+.rb-legend-item.rb-legend-medium {
+  --rb-band: var(--rb-band-medium);
+}
+
+.rb-legend-item.rb-legend-high {
+  --rb-band: var(--rb-band-high);
+}
+
+.rb-stat {
+  font-family: var(--rb-font-sans, system-ui, sans-serif);
+  margin: 0.5rem 0;
+}
+
+.rb-stat-value {
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--rb-muted);
+}
+
+.rb-status {
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-size: 0.8125rem;
+  color: var(--rb-muted);
+  margin-top: 0.5rem;
+}
+
+.rb-status.error {
+  --rb-band: var(--rb-band-high);
+}
+
+.rb-mono {
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* band style rules (referenced by .rb-low/.rb-medium/.rb-high) */
 .rb-low {
   --rb-band: var(--rb-band-low);
 }
@@ -115,4 +202,28 @@
 }
 .rb-high {
   --rb-band: var(--rb-band-high);
+}
+
+.rb-btn {
+  font-family: var(--rb-font-sans, system-ui, sans-serif);
+  background: var(--rb-accent);
+  color: var(--rb-panel);
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.rb-btn:focus {
+  outline: 2px solid var(--rb-line);
+  outline-offset: 2px;
+}
+
+#mode-extra {
+  display: none;
+}
+
+.visible {
+  display: block;
 }

@@ -87,3 +87,33 @@ test("manifest: content_scripts[0].css is ['brand.css']", async () => {
 test("build: dist-mv2/brand.css exists", async () => {
   await access("dist-mv2/brand.css");
 });
+
+// Step 1 markup assertions
+test("markup: references brand.css", async () => {
+  const html = await readFile("src/options/index.html", "utf8");
+  assert.match(html, /<link rel="stylesheet" href="brand\.css">/);
+  assert.doesNotMatch(html, /https?:\/\//);
+  assert.doesNotMatch(html, /@font-face|<style/);
+});
+
+test("markup: legend has three band swatches", async () => {
+  const html = await readFile("src/options/index.html", "utf8");
+  const matches = html.match(/rb-legend-(low|medium|high)/g) ?? [];
+  assert.equal(matches.length, 3);
+});
+
+test("markup: every component class used in HTML is defined in brand.css", async () => {
+  const html = await readFile("src/options/index.html", "utf8");
+  const css = await readFile(cssPath, "utf8");
+  const cssForSelectors = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const usedClasses = [...html.matchAll(/class="(rb-[\w-]+)/g)].map((m) =>
+    m[1]
+  );
+  for (const cls of usedClasses) {
+    assert.match(
+      cssForSelectors,
+      new RegExp(`\\.${cls}\\b`),
+      `brand.css has no rule for .${cls}`,
+    );
+  }
+});

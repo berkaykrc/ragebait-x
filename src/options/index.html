@@ -3,37 +3,16 @@
   <head>
     <meta charset="utf-8">
     <title>Ragebait settings</title>
-    <style>
-      body {
-        font-family: system-ui, sans-serif;
-        max-width: 32rem;
-        margin: 2rem auto;
-        line-height: 1.5;
-      }
-      label {
-        display: block;
-        margin: 0.75rem 0;
-      }
-      input, select {
-        width: 100%;
-        box-sizing: border-box;
-      }
-      fieldset {
-        margin: 1rem 0;
-      }
-      #consent {
-        margin: 0.5rem 0;
-        padding: 0.5rem;
-        background: #f5f5f5;
-        border-radius: 0.25rem;
-      }
-    </style>
+    <link rel="stylesheet" href="brand.css">
   </head>
   <body>
-    <h1>Ragebait Detector settings</h1>
+    <div class="rb-shell">
+      <img src="icon-48.png" alt="" width="48" height="48">
+      <span class="rb-head">Ragebait Detector settings</span>
+    </div>
 
-    <fieldset>
-      <legend>Mode</legend>
+    <fieldset id="mode-fieldset" class="rb-card">
+      <legend class="rb-label rb-mono">Mode</legend>
       <label for="mode-heuristic"><input
           type="radio"
           name="mode"
@@ -55,9 +34,9 @@
         > Bring your own key (Phase 2)</label>
     </fieldset>
 
-    <div id="mode-extra"></div>
+    <div id="mode-extra" hidden class="visible"></div>
 
-    <div id="consent-ai" hidden>
+    <div id="consent-ai" hidden class="rb-card">
       <label for="consentAccepted"><input
           type="checkbox"
           name="consentAccepted"
@@ -65,35 +44,48 @@
         > I accept the data handling above</label>
     </div>
 
-    <div id="proxy-fields" style="display: none">
+    <div id="proxy-fields" style="display: none" class="rb-card">
       <label for="proxyUrl">Proxy URL</label>
       <input type="url" name="proxyUrl" id="proxyUrl">
     </div>
 
-    <div id="byok-fields" style="display: none">
+    <div id="byok-fields" style="display: none" class="rb-card">
       <label for="byokEndpoint">BYOK endpoint</label>
       <input type="url" name="byokEndpoint" id="byokEndpoint">
       <label for="apiKey">API key</label>
       <input type="password" name="apiKey" id="apiKey">
     </div>
 
-    <label for="misclassification-email">Misclassification report email</label>
-    <input type="email" id="misclassification-email">
+    <label for="misclassification-email" class="rb-card">
+      <span class="rb-label rb-mono">Misclassification report email</span>
+      <input type="email" id="misclassification-email">
+    </label>
 
-    <p>
-      Profiles analysed today: <span id="quota-used">0</span> / <span
-        id="quota-limit"
-      >200</span>
+    <p class="rb-stat">
+      Profiles analysed today:
+      <span id="quota-used" class="rb-stat-value rb-mono">0</span>
+      /
+      <span id="quota-limit" class="rb-mono">200</span>
     </p>
+
+    <div class="rb-legend">
+      <span class="rb-legend-item rb-legend-low"></span>
+      <span class="rb-legend-item rb-legend-medium"></span>
+      <span class="rb-legend-item rb-legend-high"></span>
+      <strong>Low</strong> — minimal ragebait engagement<br>
+      <strong>Medium</strong> — moderate ragebait engagement<br>
+      <strong>High</strong> — strong ragebait engagement
+    </div>
 
     <p>
       <a id="misclassification-mailto" href="#">Report a misclassification</a>
     </p>
 
-    <span id="status"></span>
+    <span id="status" class="rb-status"></span>
 
-    <button id="save-btn">Save</button>
+    <button id="save-btn" class="rb-btn">Save</button>
 
     <script src="options.js"></script>
   </body>
 </html>
+</content>

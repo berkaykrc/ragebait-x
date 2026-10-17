@@ -1,5 +1,9 @@
 # Ragebait Detector
 
+<a href="https://x.com/ragebaitdetector" target="_blank">
+  <img src="assets/mark.svg" alt="Ragebait Detector" width="48" height="48">
+</a>
+
 A Firefox extension (MV2) that shows a ragebait / engagement-bait band inside X
 (Twitter) hovercards, based on the target account's replies.
 
@@ -26,6 +30,13 @@ scoring weights are initial placeholders pending calibration (Plan 3).
 
 Results are cached locally per state with a per-state TTL, so re-hovering an
 account does not re-fetch.
+
+## Brand
+
+The three bands — Low, Medium, High — visualise the extension's ragebait score
+using the palette tokens `--rb-band-low` (`#46c07a`), `--rb-band-medium`
+(`#e3b63f`), and `--rb-band-high` (`#f0445c`). The mark at the top of this
+README uses the `--rb-ink` token. Regenerate icons with `npm run icons`.
 
 ## Development install
 
