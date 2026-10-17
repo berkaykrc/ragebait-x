@@ -5,8 +5,11 @@
   "description": "Shows a ragebait / engagement-bait band inside X (Twitter) hovercards, based on an account's replies.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "ragebait-detector@berkaykrc.local",
-      "strict_min_version": "121.0"
+      "id": "{85dba044-1a23-412f-be1c-6a116cff5d54}",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["websiteActivity"]
+      }
     }
   },
   "permissions": [
