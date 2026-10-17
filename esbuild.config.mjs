@@ -84,6 +84,20 @@ function copyAssetsPlugin(outdir) {
   };
 }
 
+/** Copy brand.css into the build root as brand.css. */
+function copyBrandCssPlugin(outdir) {
+  const src = path.join(rootDir, "src", "brand", "brand.css");
+  const dest = path.join(outdir, "brand.css");
+  return {
+    name: "copy-brand-css",
+    setup(buildApi) {
+      buildApi.onEnd(async () => {
+        await copyFile(src, dest);
+      });
+    },
+  };
+}
+
 for (const target of TARGETS) {
   const outdir = path.join(rootDir, `dist-${target}`);
   await rm(outdir, { recursive: true, force: true });
@@ -100,6 +114,7 @@ for (const target of TARGETS) {
       copyOptionsHtmlPlugin(outdir),
       copyManifestPlugin(target, outdir),
       copyAssetsPlugin(outdir),
+      copyBrandCssPlugin(outdir),
     ],
   });
 
