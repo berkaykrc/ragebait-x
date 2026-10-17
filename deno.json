@@ -1,6 +1,15 @@
 {
   "lint": {
-    "exclude": ["dist-mv2", "dist-mv3", "node_modules", ".superpowers", "docs"],
+    // `assets` is generated output (npm run icons); generated files must not
+    // be formatted or linted.
+    "exclude": [
+      "assets",
+      "dist-mv2",
+      "dist-mv3",
+      "node_modules",
+      ".superpowers",
+      "docs"
+    ],
     "rules": {
       // This is a Node project (node:test, jsdom, esbuild), not a Deno one.
       // Deno's rule set assumes the Deno runtime, so Node globals like
@@ -11,6 +20,15 @@
     }
   },
   "fmt": {
-    "exclude": ["dist-mv2", "dist-mv3", "node_modules", ".superpowers", "docs"]
+    // `assets` is generated output (npm run icons); generated files must not
+    // be formatted or linted.
+    "exclude": [
+      "assets",
+      "dist-mv2",
+      "dist-mv3",
+      "node_modules",
+      ".superpowers",
+      "docs"
+    ]
   }
 }

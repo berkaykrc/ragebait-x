@@ -9,7 +9,7 @@
 // it just carries no manifest. See Task 1 ruling in the ledger.
 
 import { build } from "esbuild";
-import { access, copyFile, mkdir, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -65,6 +65,25 @@ function copyOptionsHtmlPlugin(outdir) {
   };
 }
 
+/** Copy the generated assets/ (mark + icons) into the build root. */
+function copyAssetsPlugin(outdir) {
+  const srcDir = path.join(rootDir, "assets");
+  return {
+    name: "copy-assets",
+    setup(buildApi) {
+      buildApi.onEnd(async () => {
+        await mkdir(outdir, { recursive: true });
+        const files = await readdir(srcDir);
+        await Promise.all(
+          files.map((file) =>
+            copyFile(path.join(srcDir, file), path.join(outdir, file))
+          ),
+        );
+      });
+    },
+  };
+}
+
 for (const target of TARGETS) {
   const outdir = path.join(rootDir, `dist-${target}`);
   await rm(outdir, { recursive: true, force: true });
@@ -80,6 +99,7 @@ for (const target of TARGETS) {
     plugins: [
       copyOptionsHtmlPlugin(outdir),
       copyManifestPlugin(target, outdir),
+      copyAssetsPlugin(outdir),
     ],
   });
 

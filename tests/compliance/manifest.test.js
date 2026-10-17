@@ -24,6 +24,7 @@ function referencedAssets(m) {
     m.background?.service_worker,
     m.options_ui?.page,
     m.options_page,
+    ...Object.values(m.icons ?? {}),
     ...(m.web_accessible_resources ?? []).map((
       r,
     ) => (typeof r === "string" ? r : r.resources)),

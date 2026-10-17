@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test 'tests/**/*.test.js' 'worker/tests/**/*.test.js'",
     "build": "node esbuild.config.mjs",
+    "icons": "node scripts/icons.mjs",
     "lint": "web-ext lint --source-dir dist-mv2 --warnings-as-errors",
     "lint:js": "deno lint",
     "fmt": "deno fmt",
