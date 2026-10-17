@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Ragebait Detector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shows a ragebait / engagement-bait band inside X (Twitter) hovercards, based on an account's replies.",
   "browser_specific_settings": {
     "gecko": {

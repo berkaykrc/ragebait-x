@@ -110,8 +110,19 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.mv2.json
-          git commit -m "release: ${tag}"
+
+          # The manifest may already be at the requested version -- someone can
+          # bump it by hand and then use this button. `git commit` exits 1 with
+          # "nothing to commit" in that case, which under `set -e` would fail
+          # the whole run. Commit only when there is genuinely something to
+          # commit, and tag either way.
+          if git diff --quiet -- manifest.mv2.json; then
+            echo "manifest is already at ${VERSION}; tagging without a commit"
+          else
+            git add manifest.mv2.json
+            git commit -m "release: ${tag}"
+          fi
+
           git tag "${tag}"
           git push origin HEAD
           git push origin "${tag}"
