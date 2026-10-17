@@ -19,6 +19,14 @@ jobs:
 
       - name: Set up Deno
         uses: denoland/setup-deno@v2
+        with:
+          # Read from .deno-version, never hardcoded here. An unpinned "2.x"
+          # installs whatever the newest 2.x happens to be, and `deno fmt`'s
+          # output is not stable across releases -- 2.9.x reformats embedded
+          # <style> CSS differently from 2.6.x. That made fmt:check fail in CI
+          # on a commit that was green locally. Bump .deno-version and reformat
+          # in the same commit.
+          deno-version-file: .deno-version
 
       - name: Install dependencies
         run: npm ci
