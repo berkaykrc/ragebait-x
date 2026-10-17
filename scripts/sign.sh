@@ -53,12 +53,19 @@ version="$(
 echo "signing ragebait-detector ${version} from dist-mv2/"
 
 # AMO can take a few minutes to process the upload. web-ext polls for us.
+#
+# Flags verified against `web-ext sign --help` (web-ext 8.10.0):
+#   --channel is REQUIRED on sign. `unlisted` = signed and installable, but
+#   not publicly listed or searchable, which is what this project wants.
+#   There is no --overwrite-dest here; that flag belongs to `web-ext build`.
+#   Re-signing the same version reuses the same artifact filename, so remove
+#   web-ext-artifacts/*.xpi first if web-ext refuses to overwrite.
 npx web-ext sign \
   --api-key="$AMO_KEY" \
   --api-secret="$AMO_SECRET" \
   --source-dir dist-mv2 \
   --artifacts-dir web-ext-artifacts \
-  --overwrite-dest
+  --channel unlisted
 
 echo
 echo "done. signed artifact:"
