@@ -160,6 +160,8 @@
 
 .rb-legend-item {
   display: flex;
+  align-items: center;
+  gap: 0.4em;
   width: 1.2em;
   height: 1.2em;
 }
@@ -241,6 +243,10 @@
   border-radius: 0.35rem;
   cursor: pointer;
   margin-top: 1rem;
+}
+
+.rb-btn:focus {
+  outline: 2px solid var(--rb-line);
 }
 
 .rb-input {
