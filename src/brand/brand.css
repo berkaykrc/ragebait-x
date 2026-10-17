@@ -115,10 +115,21 @@
 }
 
 .rb-head {
-  font-family: var(--rb-font-sans, system-ui, sans-serif);
+  font-family: var(
+    --rb-font-sans,
+    ui-sans-serif,
+    system-ui,
+    "Segoe UI",
+    sans-serif
+  );
   font-size: 1.25rem;
   color: var(--rb-ink);
   line-height: 1;
+}
+
+.rb-mark {
+  width: 48px;
+  height: 48px;
 }
 
 .rb-card {
@@ -148,10 +159,9 @@
 }
 
 .rb-legend-item {
+  display: flex;
   width: 1.2em;
   height: 1.2em;
-  border-radius: 0.15em;
-  flex-shrink: 0;
 }
 
 .rb-legend-item.rb-legend-low {
@@ -167,7 +177,13 @@
 }
 
 .rb-stat {
-  font-family: var(--rb-font-sans, system-ui, sans-serif);
+  font-family: var(
+    --rb-font-sans,
+    ui-sans-serif,
+    system-ui,
+    "Segoe UI",
+    sans-serif
+  );
   margin: 0.5rem 0;
 }
 
@@ -177,6 +193,14 @@
   color: var(--rb-muted);
 }
 
+#status {
+  color: var(--rb-muted);
+}
+
+#status.error {
+  color: var(--rb-band-high);
+}
+
 .rb-status {
   font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
   font-size: 0.8125rem;
@@ -184,9 +208,7 @@
   margin-top: 0.5rem;
 }
 
-.rb-status.error {
-  --rb-band: var(--rb-band-high);
-}
+/* removed .rb-status.error rule -- use #status.error instead */
 
 .rb-mono {
   font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
@@ -205,7 +227,13 @@
 }
 
 .rb-btn {
-  font-family: var(--rb-font-sans, system-ui, sans-serif);
+  font-family: var(
+    --rb-font-sans,
+    ui-sans-serif,
+    system-ui,
+    "Segoe UI",
+    sans-serif
+  );
   background: var(--rb-accent);
   color: var(--rb-panel);
   border: none;
@@ -215,9 +243,26 @@
   margin-top: 1rem;
 }
 
-.rb-btn:focus {
-  outline: 2px solid var(--rb-line);
+.rb-input {
+  background: var(--rb-panel-2);
+  border: 1px solid var(--rb-line);
+  padding: 0.25rem 0.5rem;
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-size: 0.8125rem;
+  color: var(--rb-text);
+  border-radius: 0.35rem;
+  margin: 0;
+}
+
+.rb-input:focus {
+  outline: 2px solid var(--rb-accent);
   outline-offset: 2px;
+}
+
+.rb-separator {
+  border: 0;
+  border-top: 1px solid var(--rb-line);
+  margin: 1rem 0;
 }
 
 #mode-extra {

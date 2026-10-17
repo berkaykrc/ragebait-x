@@ -282,12 +282,12 @@ async function handleSave() {
     await saveSettings(storage, settings);
     if (status) {
       status.textContent = "Saved.";
-      status.className = "";
+      status.classList.remove("error");
     }
   } catch {
     if (status) {
       status.textContent = "Failed to save.";
-      status.className = "error";
+      status.classList.add("error");
     }
   }
 }
