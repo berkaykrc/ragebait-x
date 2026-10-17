@@ -28,11 +28,15 @@
  * Colour map for the three bands. Exactly three keys -- asserted by a test.
  * `cls` is the line modifier class; `color` is the rendered colour, for the
  * injected stylesheet.
+ *
+ * These are the dark-theme values from Section 1 of the branding plan. They are
+ * pinned to the --rb-band-* tokens in src/brand/brand.css by
+ * tests/brand/tokens.test.js, so the two must move together.
  */
 export const BAND_STYLES = {
-  low: { cls: "rb-low", color: "#3ba55d" },
-  medium: { cls: "rb-medium", color: "#e2b93b" },
-  high: { cls: "rb-high", color: "#e0294f" },
+  low: { cls: "rb-low", color: "#46c07a" },
+  medium: { cls: "rb-medium", color: "#e3b63f" },
+  high: { cls: "rb-high", color: "#f0445c" },
 };
 
 /** The line's root class. Also the selector used for idempotency checks. */
