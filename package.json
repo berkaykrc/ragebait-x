@@ -12,7 +12,8 @@
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
     "check": "npm run lint:js && npm run fmt:check && npm run build && npm run lint && npm test",
-    "package": "web-ext build --source-dir dist-mv2 --artifacts-dir web-ext-artifacts"
+    "package": "web-ext build --source-dir dist-mv2 --artifacts-dir web-ext-artifacts",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
