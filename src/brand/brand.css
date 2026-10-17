@@ -161,7 +161,7 @@
 .rb-legend-item {
   display: flex;
   align-items: center;
-  gap: 0.4em;
+  gap: 0.1em;
   width: 1.2em;
   height: 1.2em;
 }
