@@ -158,7 +158,7 @@ function browserStorageAdapter() {
     async get(key) {
       const res = await browser.storage.local.get(key);
       return res &&
-        Object.prototype.hasOwnProperty.call(res, key)
+          Object.prototype.hasOwnProperty.call(res, key)
         ? res[key]
         : null;
     },
@@ -229,15 +229,18 @@ async function refreshQuota() {
   const limitEl = document.getElementById("quota-limit");
   if (!usedEl || !limitEl) return;
   limitEl.textContent = String(DAILY_LIMIT);
-  if (typeof browser === "undefined" || !browser.storage || !browser.storage.local) {
+  if (
+    typeof browser === "undefined" || !browser.storage || !browser.storage.local
+  ) {
     usedEl.textContent = "0";
     return;
   }
   const key = `stats:${new Date().toISOString().slice(0, 10)}`;
   try {
     const res = await browser.storage.local.get(key);
-    const raw =
-      res && Object.prototype.hasOwnProperty.call(res, key) ? res[key] : null;
+    const raw = res && Object.prototype.hasOwnProperty.call(res, key)
+      ? res[key]
+      : null;
     let count = 0;
     if (typeof raw === "number") count = raw;
     else if (raw && typeof raw.count === "number") count = raw.count;
