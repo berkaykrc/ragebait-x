@@ -45,6 +45,18 @@ if [[ ! -f dist-mv2/manifest.json ]]; then
   exit 1
 fi
 
+# `web-ext sign` has no --overwrite-dest, and it names the artifact after the
+# AMO slug plus the version, so re-signing the same version collides with the
+# previous file. These are gitignored build artifacts, so clearing them is safe:
+# the current one is always re-downloaded from AMO by this script.
+shopt -s nullglob
+stale=(web-ext-artifacts/*.xpi)
+if ((${#stale[@]})); then
+  echo "clearing ${#stale[@]} stale signed artifact(s) from a previous run"
+  rm -f -- "${stale[@]}"
+fi
+shopt -u nullglob
+
 # The current version is the artifact filename AMO will produce. Print it so
 # a signing run is identifiable in the shell history without printing secrets.
 version="$(
