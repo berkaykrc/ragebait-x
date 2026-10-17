@@ -135,6 +135,21 @@ export async function saveSettings(storage, settings) {
   }
 }
 
+/** Adapt real browser.storage.local to the storage seam (unwrap {key: value}). */
+function browserStorageAdapter() {
+  return {
+    async get(key) {
+      const res = await browser.storage.local.get(key);
+      return res && Object.prototype.hasOwnProperty.call(res, key)
+        ? res[key]
+        : null;
+    },
+    async set(key, value) {
+      await browser.storage.local.set({ [key]: value });
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // UI (extension options page only)
 // ---------------------------------------------------------------------------

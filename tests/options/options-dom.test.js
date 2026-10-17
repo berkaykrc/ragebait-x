@@ -1,73 +1,23 @@
-import { JSDOM } from "jsdom";
 import assert from "node:assert/strict";
 import { before, beforeEach, describe, test } from "node:test";
+import { JSDOM } from "jsdom";
 
 // deno-lint-ignore no-import-assertions
-const html = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Ragebait settings</title>
-  </head>
-  <body>
-    <h1>Ragebait Detector settings</h1>
-
-    <fieldset>
-      <legend>Mode</legend>
-      <label for="mode-heuristic"><input type="radio" name="mode" value="heuristic" id="mode-heuristic" checked> Heuristic (v1)</label>
-      <label for="mode-proxy"><input type="radio" name="mode" value="proxy" id="mode-proxy"> Proxy (Phase 2)</label>
-      <label for="mode-byok"><input type="radio" name="mode" value="byok" id="mode-byok"> Bring your own key (Phase 2)</label>
-    </fieldset>
-
-    <div id="mode-extra"></div>
-
-    <div id="consent-ai" hidden>
-      <label for="consentAccepted"><input type="checkbox" name="consentAccepted" id="consentAccepted"> I accept the data handling above</label>
-    </div>
-
-    <div id="proxy-fields" style="display:none">
-      <label for="proxyUrl">Proxy URL</label>
-      <input type="url" name="proxyUrl" id="proxyUrl">
-    </div>
-
-    <div id="byok-fields" style="display:none">
-      <label for="byokEndpoint">BYOK endpoint</label>
-      <input type="url" name="byokEndpoint" id="byokEndpoint">
-      <label for="apiKey">API key</label>
-      <input type="password" name="apiKey" id="apiKey">
-    </div>
-
-    <label for="misclassification-email">Misclassification report email</label>
-    <input type="email" id="misclassification-email">
-
-    <p>
-      Profiles analysed today: <span id="quota-used">0</span> / <span id="quota-limit">200</span>
-    </p>
-
-    <p><a id="misclassification-mailto" href="#">Report a misclassification</a></p>
-
-    <span id="status"></span>
-
-    <button id="save-btn">Save</button>
-
-    <script src="options.js"></script>
-  </body>
-</html>`;
 
 describe("options DOM contract", () => {
   let doc;
 
-  before(() => {
+  before(async () => {
     // Mock browser as undefined to prevent auto-boot
     globalThis.browser = undefined;
-    const dom = new JSDOM(html, { runScripts: "dangerously" });
+    const fs = await import("fs");
+    const html = fs.readFileSync("src/options/index.html", "utf8");
+    const dom = new JSDOM(html);
     doc = dom.window.document;
   });
 
   beforeEach(() => {
-    // Reset form state
-    const radios = doc.querySelectorAll('input[name="mode"]');
-    for (const r of radios) r.checked = false;
+    // Reset email value only; leave radio defaults intact
     const email = doc.getElementById("misclassification-email");
     if (email) email.value = "";
   });
