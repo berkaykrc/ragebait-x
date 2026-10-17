@@ -75,7 +75,7 @@ for (const target of TARGETS) {
     bundle: true,
     format: "iife",
     outdir,
-    target: ["firefox121"],
+    target: ["firefox128"],
     logLevel: "warning",
     plugins: [
       copyOptionsHtmlPlugin(outdir),

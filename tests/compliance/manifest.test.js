@@ -134,6 +134,22 @@ test("manifest: declares the v1 data-collection truth and nothing more", () => {
   );
 });
 
+test("manifest: esbuild's transpile target matches strict_min_version", async () => {
+  // Two different knobs that must agree: strict_min_version is the install
+  // floor, the esbuild target is how far JS syntax is downlevelled. If the
+  // target sits below the floor the build emits code for a browser the
+  // extension no longer claims to support, and nobody notices until someone
+  // reads both files side by side.
+  const src = await readFile(path.join(rootDir, "esbuild.config.mjs"), "utf8");
+  const m = src.match(/target:\s*\["firefox([0-9.]+)"\]/);
+  assert.ok(m, 'expected esbuild.config.mjs to declare target: ["firefox<n>"]');
+  assert.equal(
+    Number(m[1]),
+    Number(manifest.browser_specific_settings.gecko.strict_min_version),
+    "esbuild transpile target must equal the manifest's strict_min_version",
+  );
+});
+
 test("manifest: declared data collection still matches the real network surface", () => {
   // The declaration is a compliance claim, so it must be falsifiable against the
   // code. A new external host means something else leaves the device, which means
