@@ -7,7 +7,10 @@ import {
   handleScoreRequest,
 } from "../../src/background/index.js";
 import { makeScoreResponse, MSG } from "../../src/background/protocol.js";
-import { consumeDailyProfile } from "../../src/background/quota-local.js";
+import {
+  consumeDailyProfile,
+  MAX_DAILY_PROFILES,
+} from "../../src/background/quota-local.js";
 import { createCache } from "../../src/data/cache.js";
 
 function makeStorage(seed = {}) {
@@ -278,6 +281,100 @@ test("createBackground handleMessage single response", async () => {
     now,
     fetchImpl,
     sleepImpl: () => {},
+    onResponse: (r) => responses.push(r),
+  });
+  const res = await bg.handleMessage({
+    type: "rb:score-request",
+    handle: "h",
+    token: bg.token,
+  });
+  assert.equal(res.result.state, "result");
+  assert.equal(responses.length, 1);
+});
+
+test("background: (c2) partial replies on network failure -> estimated", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const replies = makeReplies(6);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "network", replies }),
+  });
+  assert.equal(r.state, "estimated");
+  assert.equal(r.heuristic, true);
+  assert.ok(r.band);
+});
+
+test("background: (c3) malformed with zero replies -> error", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "malformed", replies: [] }),
+  });
+  assert.equal(r.state, "error");
+});
+
+test("background: (c4) malformed with 8 replies -> estimated", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const replies = makeReplies(8);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "malformed", replies }),
+  });
+  assert.equal(r.state, "estimated");
+  assert.equal(r.heuristic, true);
+});
+
+test("background: (d) fewer than 5 replies -> insufficient", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const replies = makeReplies(3);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: true, replies }),
+  });
+  assert.equal(r.state, "insufficient");
+  assert.equal(r.percent, null);
+});
+
+test("background: (f) quota exceeded keeps band", async () => {
+  const storage = makeStorage();
+  const replies = makeReplies(6);
+  // Pre-fill the daily counter to the limit.
+  const key = "stats:1970-01-01";
+  storage.set(key, MAX_DAILY_PROFILES);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now: () => 0,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: true, replies }),
+    limit: MAX_DAILY_PROFILES,
+  });
+  assert.equal(r.state, "quota");
+  assert.ok(r.band);
+  assert.equal(r.heuristic, true);
+});
+
+test("background: (i) handleMessage single makeScoreResponse", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const replies = makeReplies(6);
+  const responses = [];
+  const bg = createBackground({
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: true, replies }),
     onResponse: (r) => responses.push(r),
   });
   const res = await bg.handleMessage({
