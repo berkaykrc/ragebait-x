@@ -33,17 +33,15 @@ account does not re-fetch.
 
 ## Brand
 
-The mark at the top of this README is a miniature signal meter using three
-stacked bars inside a rounded-square tile. Each bar corresponds to the
-extension's ragebait score band:
+The mark at the top of this README is a miniature signal meter: three stacked
+bars of increasing width inside a rounded-square tile, with the accent colour on
+the longest bar. The bars are a signal meter in the same idea as the hovercard
+pill — Low fills 1 segment, Medium 2, High 3 — but the mark itself is grayscale
+with the accent on the longest bar; the green/amber/red band colours live on the
+hovercard pill (see `--rb-band-low`, `--rb-band-medium`, `--rb-band-high`).
 
-- **Low** — 1 filled segment (green `--rb-band-low`, `#46c07a`)
-- **Medium** — 2 filled segments (amber `--rb-band-medium`, `#e3b63f`)
-- **High** — 3 filled segments (red `--rb-band-high`, `#f0445c`)
-
-The tile uses the `--rb-ink` token for its background. The palette tokens
-`--rb-band-low`, `--rb-band-medium`, and `--rb-band-high` control the bar
-colours. Regenerate icons with `npm run icons`.
+The tile uses the `--rb-ink` token for its background. Regenerate icons with
+`npm run icons`.
 
 ## Development install
 

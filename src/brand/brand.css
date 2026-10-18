@@ -38,6 +38,11 @@
   }
 }
 
+body {
+  background: var(--rb-ink);
+  color: var(--rb-text);
+}
+
 /* ragebait pill & line layout */
 .ragebait-line {
   display: inline-flex;
@@ -47,16 +52,14 @@
   border-radius: 9999px;
   background: color-mix(in srgb, var(--rb-band) 12%, var(--rb-panel));
   border: 1px solid color-mix(in srgb, var(--rb-band) 32%, var(--rb-panel));
-  font-family:
-    ui-monospace, Menlo, Monaco, "Cascadia Mono", "Source Code Pro", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-size: 85%;
   line-height: 1;
-  color: var(--rb-ink);
+  color: var(--rb-text);
 }
 .ragebait-line-tag {
   white-space: nowrap;
-  font-family:
-    ui-monospace, Menlo, Monaco, "Cascadia Mono", "Source Code Pro", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-variant-numeric: tabular-nums;
   color: var(--rb-muted);
   text-transform: uppercase;
@@ -115,15 +118,9 @@
 }
 
 .rb-head {
-  font-family: var(
-    --rb-font-sans,
-    ui-sans-serif,
-    system-ui,
-    "Segoe UI",
-    sans-serif
-  );
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   font-size: 1.25rem;
-  color: var(--rb-ink);
+  color: var(--rb-text);
   line-height: 1;
 }
 
@@ -179,13 +176,7 @@
 }
 
 .rb-stat {
-  font-family: var(
-    --rb-font-sans,
-    ui-sans-serif,
-    system-ui,
-    "Segoe UI",
-    sans-serif
-  );
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   margin: 0.5rem 0;
 }
 
@@ -229,13 +220,7 @@
 }
 
 .rb-btn {
-  font-family: var(
-    --rb-font-sans,
-    ui-sans-serif,
-    system-ui,
-    "Segoe UI",
-    sans-serif
-  );
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   background: var(--rb-accent);
   color: var(--rb-panel);
   border: none;
@@ -246,7 +231,8 @@
 }
 
 .rb-btn:focus {
-  outline: 2px solid var(--rb-line);
+  outline: 2px solid var(--rb-text);
+  outline-offset: 2px;
 }
 
 .rb-input {
