@@ -287,7 +287,7 @@ test("hovercard: bootPage routes a score response to the open line", async () =>
   await flush();
 
   const updated = doc.querySelector(".ragebait-line");
-  assert.match(updated.textContent, /Ragebait: High/);
+  assert.match(updated.textContent, /RAGEBAIT: High/);
   assert.match(updated.textContent, /estimated/);
   assert.equal(warns.length, 0);
 });

@@ -227,10 +227,10 @@ git commit -m "feat(brand): generated icon set wired into the manifest and build
 
 | state | `text` | `parts` |
 |---|---|---|
-| `result` + percent | `Ragebait: Low · %10` | tag `"Ragebait: "`, label `"Low"`, sep `" · "`, value `"%10"` |
-| `result` no percent | `Ragebait: Low(estimated)  ···` | tag, label, note `"(estimated)" + ELLIPSIS` |
-| `estimated` | `Ragebait: Medium(estimated (no model))  ···` | tag, label, note `"(estimated (no model))" + ELLIPSIS` |
-| `loading` | `Ragebait: analyzing…` | tag, note |
+| `result` + percent | `RAGEBAIT: Low · %10` | tag `"RAGEBAIT: "`, label `"Low"`, sep `" · "`, value `"%10"` |
+| `result` no percent | `RAGEBAIT: Low(estimated)  ···` | tag, label, note `"(estimated)" + ELLIPSIS` |
+| `estimated` | `RAGEBAIT: Medium(estimated (no model))  ···` | tag, label, note `"(estimated (no model))" + ELLIPSIS` |
+| `loading` | `RAGEBAIT: analyzing…` | tag, note |
 | `insufficient` / `error` / `quota` | the notice copy | single note |
 | stale | the band text + `" (stale)"` | as its base state, plus the qualifier appended to the last part's text |
 
@@ -244,13 +244,13 @@ git commit -m "feat(brand): generated icon set wired into the manifest and build
 // text is derived from parts, never maintained beside them
 const spec = render.lineSpec({ state: "result", band: "low", percent: 10 });
 assert.equal(spec.text, spec.parts.map((p) => p.text).join(""));
-assert.deepEqual(spec.parts.map((p) => p.text), ["Ragebait: ", "Low", " · ", "%10"]);
+assert.deepEqual(spec.parts.map((p) => p.text), ["RAGEBAIT: ", "Low", " · ", "%10"]);
 assert.equal(spec.meter.filled, 1);  // low
 assert.equal(spec.meter.steps, 3);
 
 // the DOM keeps the exact text a plain span produced
 const el = render.createLineElement(doc, { state: "result", band: "low", percent: 10 });
-assert.equal(el.textContent, "Ragebait: Low \u00b7 %10");   // the existing pin
+assert.equal(el.textContent, "RAGEBAIT: Low \u00b7 %10");   // the existing pin
 assert.equal(el.querySelector(".ragebait-line-meter").children.length, 3);
 assert.equal(el.querySelector(".ragebait-line-label").textContent, "Low");
 
@@ -268,7 +268,7 @@ assert.equal(el.querySelector(".ragebait-line-label").getAttribute("style"),
              `color: ${render.BAND_STYLES.low.color}`);
 ```
 
-Plus the `percent` edge cases (Review Focus #3): `NaN`, `Infinity`, `-5`, `"80"` and `undefined` all yield the estimated copy and no `NaN`/`Infinity`/`undefined` substring in `textContent`; `percent: 0` yields `Ragebait: Low · %0`.
+Plus the `percent` edge cases (Review Focus #3): `NaN`, `Infinity`, `-5`, `"80"` and `undefined` all yield the estimated copy and no `NaN`/`Infinity`/`undefined` substring in `textContent`; `percent: 0` yields `RAGEBAIT: Low · %0`.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -281,10 +281,10 @@ Add `steps` to `BAND_STYLES`. Each spec builder in `STATE_MARKUP` returns `parts
 
 - [ ] **Step 4: Update the three substring assertions the segmentation breaks**
 
-`buildLineMarkup` output now has a tag between the label's neighbours, so the *contiguous* regexes at `tests/page/render.test.js:24`, `:31` and `:81` (`/Ragebait: High/`, `/Ragebait: Medium/`, `/Ragebait: Low/`) can no longer match the string. The rendered **text** is unchanged — only the markup's nesting changed. Replace those three with per-part assertions:
+`buildLineMarkup` output now has a tag between the label's neighbours, so the *contiguous* regexes at `tests/page/render.test.js:24`, `:31` and `:81` (`/RAGEBAIT: High/`, `/RAGEBAIT: Medium/`, `/RAGEBAIT: Low/`) can no longer match the string. The rendered **text** is unchanged — only the markup's nesting changed. Replace those three with per-part assertions:
 
 ```js
-assert.match(html, />Ragebait: </);   // tag part
+assert.match(html, />RAGEBAIT: </);   // tag part
 assert.match(html, />High</);         // label part
 ```
 

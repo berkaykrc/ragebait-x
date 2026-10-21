@@ -28,7 +28,7 @@ test("render-parts: a result spec's text is the join of its parts", () => {
   const spec = render.lineSpec({ state: "result", band: "low", percent: 10 });
   assert.equal(spec.text, spec.parts.map((p) => p.text).join(""));
   assert.deepEqual(spec.parts.map((p) => p.text), [
-    "Ragebait: ",
+    "RAGEBAIT: ",
     "Low",
     " \u00b7 ",
     "%10",
@@ -130,7 +130,7 @@ test("render-parts: the stale qualifier appends to the last part", () => {
   assert.equal(spec.text, spec.parts.map((p) => p.text).join(""));
   assert.equal(
     spec.text,
-    "Ragebait: Medium(estimated)  \u00b7\u00b7\u00b7 (stale)",
+    "RAGEBAIT: Medium(estimated)  \u00b7\u00b7\u00b7 (stale)",
   );
 });
 
@@ -142,7 +142,7 @@ test("render-parts: a hostile or absent percent yields the estimated copy", () =
     const spec = render.lineSpec({ state: "result", band: "low", percent });
     assert.equal(
       spec.text,
-      "Ragebait: Low(estimated)  \u00b7\u00b7\u00b7",
+      "RAGEBAIT: Low(estimated)  \u00b7\u00b7\u00b7",
       `percent ${String(percent)} must fall back to the estimated copy`,
     );
     const doc = makeDoc();
@@ -172,9 +172,9 @@ test("render-parts: a hostile or absent percent yields the estimated copy", () =
 
 test("render-parts: percent zero is a real number, not a fallback", () => {
   const spec = render.lineSpec({ state: "result", band: "low", percent: 0 });
-  assert.equal(spec.text, "Ragebait: Low \u00b7 %0");
+  assert.equal(spec.text, "RAGEBAIT: Low \u00b7 %0");
   assert.deepEqual(spec.parts.map((p) => p.text), [
-    "Ragebait: ",
+    "RAGEBAIT: ",
     "Low",
     " \u00b7 ",
     "%0",
@@ -190,7 +190,7 @@ test("render-parts: the element path renders the pinned text plus the meter", ()
     band: "low",
     percent: 10,
   });
-  assert.equal(el.textContent, "Ragebait: Low \u00b7 %10"); // the existing pin
+  assert.equal(el.textContent, "RAGEBAIT: Low \u00b7 %10"); // the existing pin
   const meter = el.querySelector(".ragebait-line-meter");
   assert.equal(meter.children.length, 3);
   assert.equal(meter.children[0].className, "rb-seg rb-on");
@@ -238,10 +238,10 @@ test("render-parts: notice states render their copy as a single span", () => {
 test("render-parts: loading renders its tag and note parts", () => {
   const doc = makeDoc();
   const el = render.createLineElement(doc, { state: "loading" });
-  assert.equal(el.textContent, "Ragebait: analyzing\u2026"); // the existing pin
+  assert.equal(el.textContent, "RAGEBAIT: analyzing\u2026"); // the existing pin
   assert.deepEqual(el.children.length, 2);
   assert.equal(el.children[0].className, "ragebait-line-tag");
-  assert.equal(el.children[0].textContent, "Ragebait: ");
+  assert.equal(el.children[0].textContent, "RAGEBAIT: ");
   assert.equal(el.children[1].className, "ragebait-line-note");
   assert.equal(el.children[1].textContent, "analyzing\u2026");
 });

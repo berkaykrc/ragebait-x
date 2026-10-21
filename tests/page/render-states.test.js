@@ -68,7 +68,7 @@ test("render-states: loading then result renders the band and the estimated labe
       percent: null,
     }),
   );
-  assert.match(current().textContent, /Ragebait: High/);
+  assert.match(current().textContent, /RAGEBAIT: High/);
   assert.match(current().textContent, /estimated/);
   assert.match(current().className, /rb-high/);
   assert.doesNotMatch(current().textContent, /analyzing/);
@@ -79,7 +79,7 @@ test("render-states: loading then estimated shows the no-model label", () => {
   const { current, put } = mountedLoadingLine(doc);
 
   put(render.applyState(current(), { state: "estimated", band: "medium" }));
-  assert.match(current().textContent, /Ragebait: Medium/);
+  assert.match(current().textContent, /RAGEBAIT: Medium/);
   assert.match(current().textContent, /estimated \(no model\)/);
   assert.match(current().className, /rb-medium/);
 });
@@ -90,7 +90,7 @@ test("render-states: result then refresh returns the line to loading", () => {
   put(
     render.applyState(current(), { state: "result", band: "low", percent: 12 }),
   );
-  assert.match(current().textContent, /Ragebait: Low/);
+  assert.match(current().textContent, /RAGEBAIT: Low/);
   assert.doesNotMatch(current().textContent, /estimated/);
 
   put(render.applyState(current(), { state: "loading" }));
@@ -203,7 +203,7 @@ test("render-states: an estimated envelope past 50% of its TTL renders the stale
   assert.match(current().className, /ragebait-line-stale/);
   assert.match(current().textContent, /\(stale\)/);
   // The band and the estimated label survive the stale qualifier.
-  assert.match(current().textContent, /Ragebait: Medium/);
+  assert.match(current().textContent, /RAGEBAIT: Medium/);
   assert.match(current().textContent, /estimated \(no model\)/);
   assert.match(current().className, /rb-medium/);
 });
@@ -231,7 +231,7 @@ test("render-states: applyState is idempotent for the same state", () => {
   put(render.applyState(current(), state));
 
   assert.equal(host.querySelectorAll(".ragebait-line").length, 1);
-  assert.equal(current().textContent, "Ragebait: Low \u00b7 %10");
+  assert.equal(current().textContent, "RAGEBAIT: Low \u00b7 %10");
 });
 
 test("render-states: applyState replaces the whole line body", () => {
@@ -247,7 +247,7 @@ test("render-states: applyState replaces the whole line body", () => {
     render.applyState(current(), { state: "result", band: "low", percent: 5 }),
   );
   assert.equal(current().querySelector(".rb-high"), null);
-  assert.match(current().textContent, /Ragebait: Low \u00b7 %5/);
+  assert.match(current().textContent, /RAGEBAIT: Low \u00b7 %5/);
 });
 
 test("render-states: applyState keeps the debugging handle attribute", () => {
@@ -293,5 +293,5 @@ test("render-states: a transition for one handle never mutates another handle's 
   assert.equal(lineA.isConnected, true);
   assert.equal(lineA.textContent, textA);
   assert.equal(lineA.className, clsA);
-  assert.match(nextB.textContent, /Ragebait: High/);
+  assert.match(nextB.textContent, /RAGEBAIT: High/);
 });

@@ -397,7 +397,7 @@ test("messaging: clicking the line emits a refresh and resets it to loading", as
     band: "high",
     percent: 87,
   });
-  assert.match(entry.line.textContent, /Ragebait: High/);
+  assert.match(entry.line.textContent, /RAGEBAIT: High/);
 
   entry.line.dispatchEvent(
     new doc.defaultView.MouseEvent("click", { bubbles: true }),

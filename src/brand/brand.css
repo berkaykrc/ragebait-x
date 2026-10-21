@@ -41,6 +41,11 @@
 body {
   background: var(--rb-ink);
   color: var(--rb-text);
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  line-height: 1.5;
 }
 
 /* ragebait pill & line layout */
@@ -138,7 +143,7 @@ body {
 }
 
 .rb-label {
-  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-size: 0.6875rem;
   line-height: 1.1;
   color: var(--rb-muted);
@@ -150,9 +155,15 @@ body {
 
 .rb-legend {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   margin: 0.5rem 0;
+}
+
+.rb-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .rb-legend-item {
@@ -161,6 +172,7 @@ body {
   gap: 0.1em;
   width: 1.2em;
   height: 1.2em;
+  flex-shrink: 0;
 }
 
 .rb-legend-item.rb-legend-low {
@@ -181,7 +193,7 @@ body {
 }
 
 .rb-stat-value {
-  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-variant-numeric: tabular-nums;
   color: var(--rb-muted);
 }
@@ -195,7 +207,7 @@ body {
 }
 
 .rb-status {
-  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-size: 0.8125rem;
   color: var(--rb-muted);
   margin-top: 0.5rem;
@@ -204,7 +216,7 @@ body {
 /* removed .rb-status.error rule -- use #status.error instead */
 
 .rb-mono {
-  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-variant-numeric: tabular-nums;
 }
 
@@ -239,11 +251,14 @@ body {
   background: var(--rb-panel-2);
   border: 1px solid var(--rb-line);
   padding: 0.25rem 0.5rem;
-  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   font-size: 0.8125rem;
   color: var(--rb-text);
   border-radius: 0.35rem;
-  margin: 0;
+  margin: 0.25rem 0 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
 }
 
 .rb-input:focus {

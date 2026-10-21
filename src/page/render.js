@@ -130,7 +130,7 @@ function bandSpec(s) {
     // The calibrated number, shown only once /config's showNumber gate
     // passes (plan Part 1 §1; the gate itself is Task 15).
     parts = [
-      { cls: PART_TAG, text: "Ragebait: " },
+      { cls: PART_TAG, text: "RAGEBAIT: " },
       { cls: PART_LABEL, text: label },
       { cls: PART_SEP, text: " \u00b7 ", hidden: true },
       { cls: PART_VALUE, text: `%${Math.round(s.percent)}` },
@@ -139,7 +139,7 @@ function bandSpec(s) {
     // No number yet: an estimated answer, not a definitive one.
     const qualifier = s.state === "estimated" ? " (no model)" : "";
     parts = [
-      { cls: PART_TAG, text: "Ragebait: " },
+      { cls: PART_TAG, text: "RAGEBAIT: " },
       { cls: PART_LABEL, text: label },
       { cls: PART_NOTE, text: `(estimated${qualifier})${ELLIPSIS}` },
     ];
@@ -181,7 +181,7 @@ function quotaSpec(s) {
 export const STATE_MARKUP = Object.freeze({
   loading: () =>
     baseSpec(`${LINE_CLASS} ${LINE_CLASS}-loading`, [
-      { cls: PART_TAG, text: "Ragebait: " },
+      { cls: PART_TAG, text: "RAGEBAIT: " },
       { cls: PART_NOTE, text: STATE_COPY.loading },
     ]),
   result: bandSpec,
