@@ -47,7 +47,7 @@ function cardHtml(inner = CARD_HTML) {
 /** Capture console.warn calls without printing them. */
 function warnCollector() {
   const warns = [];
-  return { warns, warn: (...args) => warns.push(args) };
+  return { warns, warn: (...args) => warns.push(args), info: () => {} };
 }
 
 // --- extractScreenName --------------------------------------------------------
@@ -212,7 +212,7 @@ test("hovercard: re-adding the same card does not render twice", async () => {
   observer.dispose();
 });
 
-test("hovercard: an avatar-wait timeout is a silent no-op", async () => {
+test("hovercard: an avatar-wait timeout warns and renders nothing", async () => {
   const doc = makeDoc(`<div id="layers"></div>`);
   const layers = doc.querySelector("#layers");
   const { warns, warn } = warnCollector();
@@ -227,7 +227,8 @@ test("hovercard: an avatar-wait timeout is a silent no-op", async () => {
   await flush();
 
   assert.equal(doc.querySelectorAll(".ragebait-line").length, 0);
-  assert.equal(warns.length, 0);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0][0], /timed out/);
 
   observer.dispose();
 });

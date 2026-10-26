@@ -361,7 +361,7 @@ test("messaging: opening a card sends exactly one score request for its handle",
   const spies = makeMessagingSpies();
   const observer = createHovercardObserver({
     document: doc,
-    consoleLike: { warn: () => {} },
+    consoleLike: { warn: () => {}, info: () => {} },
     waitForCard: (card, done) =>
       done(card.querySelector(SELECTORS.followingLink)),
     messaging: spies.messaging,
@@ -381,7 +381,7 @@ test("messaging: clicking the line emits a refresh and resets it to loading", as
   const spies = makeMessagingSpies();
   const observer = createHovercardObserver({
     document: doc,
-    consoleLike: { warn: () => {} },
+    consoleLike: { warn: () => {}, info: () => {} },
     waitForCard: (card, done) =>
       done(card.querySelector(SELECTORS.followingLink)),
     messaging: spies.messaging,
@@ -429,7 +429,7 @@ test("messaging: closing the card aborts the request and emits exactly one rb:sc
   const spies = makeMessagingSpies();
   const observer = createHovercardObserver({
     document: doc,
-    consoleLike: { warn: () => {} },
+    consoleLike: { warn: () => {}, info: () => {} },
     waitForCard: (card, done) =>
       done(card.querySelector(SELECTORS.followingLink)),
     messaging: spies.messaging,
@@ -467,7 +467,7 @@ test("messaging: a card detached and re-attached in one turn is a move, not a cl
   const spies = makeMessagingSpies();
   const observer = createHovercardObserver({
     document: doc,
-    consoleLike: { warn: () => {} },
+    consoleLike: { warn: () => {}, info: () => {} },
     waitForCard: (card, done) =>
       done(card.querySelector(SELECTORS.followingLink)),
     messaging: spies.messaging,
@@ -504,7 +504,7 @@ test("messaging: the default bridge sends the request when the config tag has a 
 
   const observer = createHovercardObserver({
     document: doc,
-    consoleLike: { warn: () => {} },
+    consoleLike: { warn: () => {}, info: () => {} },
     waitForCard: (card, done) =>
       done(card.querySelector(SELECTORS.followingLink)),
   });
@@ -533,7 +533,7 @@ test("messaging: a result for an unknown handle never touches the open lines", a
   bootPage({
     document: doc,
     win,
-    consoleLike: { warn: () => {} },
+    consoleLike: { warn: () => {}, info: () => {} },
     waitForCard: (card, done) =>
       done(card.querySelector(SELECTORS.followingLink)),
   });

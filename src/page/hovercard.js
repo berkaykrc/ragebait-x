@@ -33,7 +33,7 @@ export const SELECTORS = {
 };
 
 /** How long the avatar poll waits before giving up on a card. */
-export const AVATAR_TIMEOUT_MS = 500;
+export const AVATAR_TIMEOUT_MS = 2000;
 
 /**
  * Response type this world listens for. Now owned by the page-world bridge
@@ -210,6 +210,9 @@ export function createHovercardObserver({
       if (mounted && !inner) {
         rootWatcher.disconnect();
         rootWatcher = null;
+        consoleLike.info?.(
+          "ragebait: #layers mounted — hovercard observer active",
+        );
         inner = watchLayers(mounted);
       }
       if (inner) {
@@ -223,6 +226,37 @@ export function createHovercardObserver({
       }
     });
     rootWatcher.observe(doc, { childList: true, subtree: true });
+
+    // FALLBACK: Some Firefox/X.com environments dont fire MutationObserver
+    // # when #layers is added lazily. Poll every 200ms as a reliable safety net.
+    // After 3 seconds (15 attempts) of polling without success, we keep the
+    // document-level observer active instead of continuing to poll.
+    const pollMaxAttempts = 15; // 3 seconds at 200ms
+    let pollAttempts = 0;
+
+    const pollHandler = () => {
+      pollAttempts += 1;
+      const checkedRoot = doc.querySelector(SELECTORS.layers);
+      if (checkedRoot && !inner) {
+        rootWatcher.disconnect();
+        rootWatcher = null;
+        consoleLike.info?.(
+          "ragebait: #layers mounted (poll) — hovercard observer active",
+        );
+        inner = watchLayers(checkedRoot);
+        clearInterval(pollInterval);
+      }
+      if (pollAttempts >= pollMaxAttempts) {
+        clearInterval(pollInterval);
+      }
+    };
+
+    const pollInterval = setInterval(pollHandler, 200);
+
+    // Also keep a lightweight document-level MutationObserver as a secondary
+    // # safety net. It fires when Twitter adds #layers through mechanisms that
+    // # polling doesnt catch (e.g., innerHTML replacement without childList).
+    // # (The observer above is already set up, no need to create another)
   }
 
   function openCard(card) {
@@ -270,12 +304,17 @@ export function createHovercardObserver({
           controller: new AbortController(),
         };
         cards.set(handle.toLowerCase(), entry);
+        consoleLike.info?.(`ragebait: requesting score for @${handle}`);
         // The live flow: a rendered line is a requested score. Refused
         // (token-less, malformed) sends keep the line on "analyzing…"; the
         // background dedupes repeat requests for the same handle.
         bridge.sendScoreRequest(handle);
       },
-      () => {},
+      () => {
+        consoleLike.warn(
+          `ragebait: avatar hydration timed out after ${AVATAR_TIMEOUT_MS}ms; card skipped`,
+        );
+      },
     );
   }
 

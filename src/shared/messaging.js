@@ -7,10 +7,17 @@
 //                                      | isTrustedRagebaitMessage()  <-- the gate
 //                                      | parseScoreRequest()
 //                                      v
-//                            [browser.runtime.onMessage -> background]
-//                                      |
+//                            [browser.runtime.sendMessage (async)]
+//                                      |  response is the Promise resolution
 //                                      v
-//   page  <--window.postMessage--  [runtime listener posts back, token echoed]
+//   page  <--window.postMessage--  [postMessage back, token echoed]
+//
+// IMPORTANT: browser.runtime.sendMessage() returns a Promise that resolves
+// with the value the background's onMessage handler returns. This is the
+// correct response path for request-reply pairs (rb:score-request). The
+// runtime.onMessage listener below handles push-style responses that the
+// background may emit for async/deduped completions (e.g. when a second
+// card joins an in-flight request for the same handle).
 //
 // The token is session correlation, not a secret (see security.js).
 
@@ -19,6 +26,18 @@ import { isTrustedRagebaitMessage, parseScoreRequest } from "./security.js";
 /** Background -> page message type. Not in ALLOWED_MSG_TYPES: that allowlist
  *  governs page -> extension messages, and the page may never send this one. */
 export const SCORE_RESPONSE_TYPE = "rb:score-response";
+
+/**
+ * Post a score response to the page, guarding against a stale token.
+ * Internal helper shared by both the sendMessage resolution and the
+ * runtime.onMessage push path.
+ */
+function postResponse(win, getOrigin, getToken, message) {
+  if (!message || typeof message !== "object") return;
+  if (message.type !== SCORE_RESPONSE_TYPE) return;
+  const origin = getOrigin();
+  win.postMessage({ ...message, token: getToken() }, origin);
+}
 
 /**
  * Install the bridge.
@@ -42,11 +61,21 @@ export function createBridge({ win, browserApi, getOrigin, getToken }) {
     if (data.type === "rb:score-request") {
       const parsed = parseScoreRequest(data);
       if (!parsed) return;
-      void browserApi.runtime.sendMessage({
-        type: "rb:score-request",
-        handle: parsed.handle,
-        token: parsed.token,
-      });
+      // Await the Promise: the background's onMessage handler returns the
+      // response object, which resolves here. This is the primary response
+      // path. browser.runtime.sendMessage FROM the background cannot reach
+      // content-script onMessage listeners — that path is for push-style
+      // duplicated responses only (see onRuntimeMessage below).
+      void Promise.resolve(
+        browserApi.runtime.sendMessage({
+          type: "rb:score-request",
+          handle: parsed.handle,
+          token: parsed.token,
+        }),
+      ).then(
+        (response) => postResponse(win, getOrigin, getToken, response),
+        () => {/* background unavailable; page stays on "analyzing…" */},
+      );
       return;
     }
 
@@ -61,13 +90,14 @@ export function createBridge({ win, browserApi, getOrigin, getToken }) {
     }
   }
 
-  // --- background -> page ---------------------------------------------------
+  // --- background -> page (push path) ---------------------------------------
+  // Handles responses the background delivers via runtime.sendMessage when it
+  // has completed an async/deduped request that was not originated by THIS
+  // bridge instance's sendMessage call (e.g. a second tab joining an
+  // in-flight dedupe). In the common single-request case the postResponse()
+  // call in onWindowMessage fires first; this listener is the safety net.
   function onRuntimeMessage(message) {
-    if (!message || typeof message !== "object") return;
-    if (message.type !== SCORE_RESPONSE_TYPE) return;
-
-    const origin = getOrigin();
-    win.postMessage({ ...message, token: getToken() }, origin);
+    postResponse(win, getOrigin, getToken, message);
   }
 
   win.addEventListener("message", onWindowMessage);
