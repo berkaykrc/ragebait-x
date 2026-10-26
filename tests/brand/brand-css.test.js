@@ -40,6 +40,22 @@ test("CSS: every class selector must be in the allowlist", () => {
   );
 });
 
+test("CSS: no unscoped element selectors", () => {
+  const unscoped = [...cssForSelectors.matchAll(/(^|[},])\s*([^{}@]+)\{/g)]
+    .map((m) => m[2].trim())
+    .filter((sel) => {
+      if (sel === ":root" || /^(from|to|\d+%)$/.test(sel)) return false;
+      if (sel.startsWith("body.rb-options")) return false;
+      if (/#[\w-]+/.test(sel)) return false;
+      return !/\.[a-zA-Z]/.test(sel);
+    });
+  assert.deepEqual(
+    unscoped,
+    [],
+    "element/attribute selectors must be scoped to body.rb-options",
+  );
+});
+
 // no remote resources, ever
 test("CSS: no remote url()", () => {
   assert.doesNotMatch(css, /url\(\s*['"]?https?:/);

@@ -71,6 +71,7 @@ describe("options DOM contract", () => {
       doc.getElementById("mode-extra").classList.contains("visible"),
       false,
     );
+    assert.equal(doc.getElementById("mode-extra").hidden, true);
     assert.equal(doc.getElementById("consent-ai").hidden, true);
 
     mod.updateModeUI(doc, "byok");
@@ -78,6 +79,7 @@ describe("options DOM contract", () => {
       doc.getElementById("mode-extra").classList.contains("visible"),
       true,
     );
+    assert.equal(doc.getElementById("mode-extra").hidden, false);
     assert.equal(doc.getElementById("consent-ai").hidden, false);
   });
 

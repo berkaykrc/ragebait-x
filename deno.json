@@ -21,13 +21,15 @@
   },
   "fmt": {
     // `assets` is generated output (npm run icons); generated files must not
-    // be formatted or linted.
+    // be formatted or linted. `.taste-skill` is design-inspection tooling
+    // output (screenshots, generated report.json), never source.
     "exclude": [
       "assets",
       "dist-mv2",
       "dist-mv3",
       "node_modules",
       ".superpowers",
+      ".taste-skill",
       "docs"
     ]
   }

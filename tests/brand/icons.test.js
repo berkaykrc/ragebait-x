@@ -96,3 +96,44 @@ test("brand icons: the SVG is one rect per prim on the 128 grid", () => {
     );
   }
 });
+
+test("brand icons: bars are actually painted over the tile (pixel probe)", async () => {
+  // Regression: the rasteriser once walked the prim stack bottom-up and broke
+  // on the FIRST prim containing a sample, so the tile swallowed every bar and
+  // each PNG rendered as a solid dark square. Committed-vs-fresh comparison
+  // cannot catch that (both sides shared the bug), so this reads real decoded
+  // pixels at, or beside, the bar centres on the 128 grid.
+  const { inflateSync } = await import("node:zlib");
+  const png = renderIconPng(128);
+  const idat = [];
+  let off = 8;
+  while (off < png.length) {
+    const len = png.readUInt32BE(off);
+    const type = png.toString("latin1", off + 4, off + 8);
+    if (type === "IDAT") idat.push(png.subarray(off + 8, off + 8 + len));
+    off += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = 128 * 4 + 1;
+  const px = (
+    x,
+    y,
+  ) => {
+    const o = y * stride + 1 + x * 4;
+    return [raw[o], raw[o + 1], raw[o + 2], raw[o + 3]];
+  };
+  const rgb = (h) => [
+    parseInt(h.slice(1, 3), 16),
+    parseInt(h.slice(3, 5), 16),
+    parseInt(h.slice(5, 7), 16),
+    255,
+  ];
+  const sample = (x, y, fill, what) =>
+    assert.deepEqual(px(x, y), rgb(fill), `${what} must render ${fill}`);
+  sample(25, 25, "#e7eaee", "bar 1");
+  sample(50, 53, "#e7eaee", "bar 2");
+  sample(100, 78, "#4cc2c4", "accent bar 3");
+  sample(25, 40, "#0b0d10", "the gap between bar 1 and bar 2");
+  // Rounded corner cutout: outside the tile there is nothing but alpha 0.
+  assert.deepEqual(px(2, 2), [0, 0, 0, 0], "corner cutout is transparent");
+});

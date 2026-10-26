@@ -203,6 +203,7 @@ export function updateModeUI(doc, mode) {
   const proxyFields = doc.getElementById("proxy-fields");
   const byokFields = doc.getElementById("byok-fields");
   if (extra) extra.classList.toggle("visible", isAI);
+  if (extra) extra.hidden = !isAI;
   if (consentAI) consentAI.hidden = !isAI;
   if (proxyFields) proxyFields.style.display = mode === "proxy" ? "" : "none";
   if (byokFields) byokFields.style.display = mode === "byok" ? "" : "none";
@@ -280,16 +281,35 @@ async function handleSave() {
   const storage = browserStorageAdapter();
   try {
     await saveSettings(storage, settings);
+    // Success is the button's own state; the status span is reserved for
+    // failures so idle rows stay quiet.
     if (status) {
-      status.textContent = "Saved.";
+      status.textContent = "";
       status.classList.remove("error");
     }
+    markSaved(document.getElementById("save-btn"));
   } catch {
     if (status) {
       status.textContent = "Failed to save.";
       status.classList.add("error");
     }
   }
+}
+
+/** The button carries the success feedback itself: label and fill flip to the
+ * saved state, then settle back after a beat. */
+const SAVE_CONFIRM_MS = 1600;
+let saveResetTimer = undefined;
+
+function markSaved(btn) {
+  if (!btn) return;
+  clearTimeout(saveResetTimer);
+  btn.classList.add("rb-btn-saved");
+  btn.textContent = "Saved";
+  saveResetTimer = setTimeout(() => {
+    btn.classList.remove("rb-btn-saved");
+    btn.textContent = "Save";
+  }, SAVE_CONFIRM_MS);
 }
 
 /** Boot the options page in the extension page only. */

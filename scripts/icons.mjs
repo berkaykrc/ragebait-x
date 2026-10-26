@@ -58,8 +58,9 @@ function signedDistance(gx, gy, prim) {
 /**
  * Rasterise PRIMS at `size` px and wrap it in a PNG. Each pixel is
  * supersampled 4x4 (sample points offset +0.5/SUB), the prim stack painted
- * bottom-up (tile first, bars above it); every fill is opaque, so the topmost
- * prim containing a sample wins. Alpha is straight, never premultiplied.
+ * top-down (bars first because they sit above the tile); every fill is opaque,
+ * so the topmost prim containing a sample wins. Alpha is straight, never
+ * premultiplied.
  */
 export function renderIconPng(size) {
   const SUB = 4;
@@ -77,8 +78,9 @@ export function renderIconPng(size) {
         for (let sx = 0; sx < SUB; sx++) {
           const gy = (py + (sy + 0.5) / SUB) / scale;
           const gx = (px + (sx + 0.5) / SUB) / scale;
-          // Paint bottom-up: an opaque prim overrides anything below it.
-          for (let i = 0; i < PRIMS.length; i++) {
+          // Paint top-down: a later prim (bars) sits above earlier ones
+          // (the tile), so the stack is walked from the top first.
+          for (let i = PRIMS.length - 1; i >= 0; i--) {
             if (signedDistance(gx, gy, PRIMS[i]) <= 0) {
               r += fills[i].r;
               g += fills[i].g;

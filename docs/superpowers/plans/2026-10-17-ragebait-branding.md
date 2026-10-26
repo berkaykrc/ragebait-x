@@ -534,3 +534,56 @@ git commit -m "feat(brand): clinical identity across the settings page and READM
 - No screenshot tooling, no store listing copy, no changelog, no new manifest metadata (AMO `homepage_url` etc. is Phase-4 compliance work, not branding).
 - The AI/proxy fields stay functional-looking but hidden behind `#mode-extra` exactly as today; Phase 2 makes them real.
 - `worker/` and `data/` are untouched.
+
+---
+
+## Addendum — implemented design decisions after the Task-9 build-out
+
+Recorded because the direction sheet the design was built from was working
+documentation, not a repo artefact. The plan above stays the Task-time source
+of truth; this section states what the shipped CSS actually decided when it
+diverged from the plan's first sketch.
+
+**Typography (both worlds).** System faces only — no webfonts, enforced by
+`tests/brand/brand-css.test.js` forbidding `<style>`/`@font-face` in
+`options.html` and the no-remote-resources rule in Section 1. The design-tool
+deal asked for a bundled face; that was consciously not shipped (inspector run
+passes `--allow font-not-dealt`). Mono is reserved for figures and keys
+(`.rb-mono`, the hovercard pill), with `tabular-nums`; sentence-case sans at
+readable size for all labels — the plan's 11px uppercase mono micro-labels were
+dropped as an inspector-fired rule (tiny tracked caps), not as a taste change.
+
+**Options page layout (`body.rb-options` scope only).**
+- Header is one plain panel, identical to the cards below it: the double-bezel
+  shell (outer grey ring) was removed after review. Mark + `h1` wordmark,
+  no eyebrow badge.
+- Panels: `--rb-panel` fill, hairline `color-mix(in srgb, var(--rb-text) 12%,
+  transparent)` border, no shadows at rest; surfaces separate by tone step.
+- Labels: 13px sentence case in the muted token; the fieldset legend floats
+  into the content box (Chrome otherwise renders captions in the top-border
+  region, outside the panel).
+- Text-like inputs are plain fields on `--rb-panel-2` with a hairline border —
+  the inverted-well experiment (text-coloured fill) read as a black slab in
+  light theme and was reverted.
+- Links and check/radio controls follow `--rb-link` (dark theme: the accent
+  hex; light theme: a darkened sibling of the same hue) so text contrast clears
+  the 4.5:1 bar against the light ground, where the raw accent measured 2:1.
+- Save feedback lives on the button itself (`markSaved`: the label flips, the
+  fill takes the saved tone for a JS-backed beat, then settles back). `#status`
+  is reserved for error copy. A dedicated saved tone avoids pairing a mid-green
+  fill with a white label that would sit under the contrast bar.
+- Legend "off" segments sample `--rb-muted` over the panel, per-theme share
+  (stronger on dark), because the raw panel tone vanishes on white.
+- Entry motion: one rise animation per block along the house bezier, staggered
+  inline, dropped entirely under `prefers-reduced-motion`.
+
+**Hovercard pill.** Parts share one text baseline (`align-items: baseline`,
+not centred); the meter cells carry fixed flex bases inside the pill since the
+hovercard supplies no sized parent (the options legend does). Band colour has a
+fallback: loading and notice lines carry no band class, and without the
+fallback their fill, border and filled cells computed to nothing.
+
+**What never matches the host.** Every options-page rule hangs off
+`body.rb-options`; hovercard rules keep the `ragebait-*`/`rb-*` class prefixes.
+`brand.css` stays loadable as X's content stylesheet without styling X's own
+DOM — a test rule and the reason options-page scaffolding cannot leak.

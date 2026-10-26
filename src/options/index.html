@@ -3,18 +3,25 @@
   <head>
     <meta charset="utf-8">
     <title>Ragebait settings</title>
+    <link rel="icon" type="image/png" href="icon-32.png">
     <link rel="stylesheet" href="brand.css">
   </head>
-  <body>
-    <div class="rb-shell">
-      <img src="icon-48.png" alt="" width="48" height="48" class="rb-mark">
-      <span class="rb-head">Ragebait Detector settings</span>
+  <body class="rb-options">
+    <div class="rb-shell rb-rise">
+      <div class="rb-core">
+        <img src="icon-48.png" alt="" width="48" height="48" class="rb-mark">
+        <div class="rb-head-group">
+          <h1 class="rb-head">Ragebait Detector</h1>
+        </div>
+      </div>
     </div>
 
-    <hr class="rb-separator">
-
-    <fieldset id="mode-fieldset" class="rb-card">
-      <legend class="rb-label rb-mono">Mode</legend>
+    <fieldset
+      id="mode-fieldset"
+      class="rb-card rb-rise"
+      style="animation-delay: 70ms"
+    >
+      <legend class="rb-label">Mode</legend>
       <label for="mode-heuristic"><input
           type="radio"
           name="mode"
@@ -42,7 +49,7 @@
     <div id="mode-extra" hidden></div>
 
     <div id="consent-ai" hidden class="rb-card">
-      <label for="consentAccepted" class="rb-label rb-mono"><input
+      <label for="consentAccepted" class="rb-label"><input
           type="checkbox"
           name="consentAccepted"
           id="consentAccepted"
@@ -51,24 +58,28 @@
     </div>
 
     <div id="proxy-fields" style="display: none" class="rb-card">
-      <label for="proxyUrl" class="rb-label rb-mono">Proxy URL</label>
+      <label for="proxyUrl" class="rb-label">Proxy URL</label>
       <input type="url" name="proxyUrl" id="proxyUrl" class="rb-input">
     </div>
 
     <div id="byok-fields" style="display: none" class="rb-card">
-      <label for="byokEndpoint" class="rb-label rb-mono">BYOK endpoint</label>
+      <label for="byokEndpoint" class="rb-label">BYOK endpoint</label>
       <input type="url" name="byokEndpoint" id="byokEndpoint" class="rb-input">
-      <label for="apiKey" class="rb-label rb-mono">API key</label>
+      <label for="apiKey" class="rb-label">API key</label>
       <input type="password" name="apiKey" id="apiKey" class="rb-input">
     </div>
 
-    <label for="misclassification-email" class="rb-card">
-      <span class="rb-label rb-mono">Misclassification report email</span>
+    <label
+      for="misclassification-email"
+      class="rb-card rb-rise"
+      style="animation-delay: 140ms"
+    >
+      <span class="rb-label">Misclassification report email</span>
       <input type="email" id="misclassification-email" class="rb-input">
     </label>
 
-    <div class="rb-card">
-      <span class="rb-label rb-mono">Quota</span>
+    <div class="rb-card rb-rise" style="animation-delay: 210ms">
+      <span class="rb-label">Quota</span>
       <p class="rb-stat">
         Profiles analysed today:
         <span id="quota-used" class="rb-stat-value rb-mono">0</span>
@@ -77,7 +88,7 @@
       </p>
     </div>
 
-    <div class="rb-legend">
+    <div class="rb-legend rb-rise" style="animation-delay: 280ms">
       <div class="rb-legend-row">
         <span class="rb-legend-item rb-legend-low">
           <span class="rb-seg rb-on"></span>
@@ -104,15 +115,15 @@
       </div>
     </div>
 
-    <p>
+    <p class="rb-report rb-rise" style="animation-delay: 330ms">
       <a id="misclassification-mailto" href="#">Report a misclassification</a>
     </p>
 
-    <span id="status" class="rb-status"></span>
-
-    <button id="save-btn" class="rb-btn">Save</button>
+    <div class="rb-actions rb-rise" style="animation-delay: 380ms">
+      <span id="status" class="rb-status"></span>
+      <button id="save-btn" class="rb-btn">Save</button>
+    </div>
 
     <script src="options.js"></script>
   </body>
 </html>
-</content>
