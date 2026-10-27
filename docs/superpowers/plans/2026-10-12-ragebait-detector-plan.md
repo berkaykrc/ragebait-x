@@ -98,7 +98,7 @@ flowchart TB
   - Line injection (CP4T pattern, `afterend`); selector miss is a silent no-op with a console warning.
   - DOM enrichment: Replies-tab scraper feeding `dom-store.js`.
 - `background.js`:
-  - Data layer: FxTwitter client behind the `FxDataAdapter` seam (Task 4), with retry/backoff and page-1 streaming.
+  - Data layer: FxTwitter client behind the `FxDataAdapter` seam (Task 4), with retry/backoff and abortable pagination.
   - Heuristics (lexicon + patterns + ratios), score composition (placeholder weights pending Task 18).
   - Cache: `browser.storage.local`, 7-day TTL, `result`/`estimated` only.
 
@@ -413,7 +413,7 @@ Both targets run on every `npm run build`; `manifest.mv3.json` is optional until
 
 - [ ] **Step 10: Run test** → PASS.
 
-- [ ] **Step 11: Commit** — `feat: fxtwitter client (streaming + abort) + reply extractor + adapter seam`
+- [ ] **Step 11: Commit** — `feat: fxtwitter client (pagination + abort) + reply extractor + adapter seam`
 
 ### Task 5: Heuristic features and score composition
 
@@ -541,7 +541,7 @@ Sum = 1.00. `score = Σ(w_present · f_present) / Σ(w_present)` where "present"
 
 - [ ] **Step 8: Run `npm run lint`, `npm test`, `npm run build`** → all pass.
 
-- [ ] **Step 9: Commit** — `feat: background orchestration (cache + streaming fetch + dom merge + score)`
+- [ ] **Step 9: Commit** — `feat: background orchestration (cache + fetch + dom merge + score)`
 
 ### Task 9: Settings page
 

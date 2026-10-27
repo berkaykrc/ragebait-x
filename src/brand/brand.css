@@ -1,10 +1,7 @@
 /* ragebait-detector brand tokens.
  *
  * Section 1 of docs/superpowers/plans/2026-10-17-ragebait-branding.md fixes
- * these names and hexes. The band
- * colours are pinned to BAND_STYLES in src/page/render.js by tests/brand/tokens.test.js
- * changing either side alone fails the suite, because a one-sided palette edit makes the
- * legend lie.
+ * these names and hexes. The band colours align with BAND_STYLES in src/page/render.js.
  *
  * Dark is the base -- X's hovercard is dark for its default theme. The media
  * query below re-tunes the surface tokens and darkens the band colours for

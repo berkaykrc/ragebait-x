@@ -30,9 +30,7 @@
  * injected stylesheet and the label span's inline style; `steps` is how many
  * meter segments the band fills (low 1, medium 2, high 3 of three).
  *
- * These are the dark-theme values from Section 1 of the branding plan. They are
- * pinned to the --rb-band-* tokens in src/brand/brand.css by
- * tests/brand/tokens.test.js, so the two must move together.
+ * These are the dark-theme values from Section 1 of the branding plan.
  */
 export const BAND_STYLES = {
   low: { cls: "rb-low", color: "#46c07a", steps: 1 },
