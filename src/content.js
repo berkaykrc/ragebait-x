@@ -77,6 +77,10 @@ export function bootContent({ doc, win, browserApi }) {
 }
 
 // Auto-boot in the extension only; importing this module in a test must not.
-if (typeof browser !== "undefined" && typeof document !== "undefined") {
-  bootContent({ doc: document, win: window, browserApi: browser });
+const extensionApi = typeof browser !== "undefined"
+  ? browser
+  : (typeof chrome !== "undefined" ? chrome : null);
+
+if (extensionApi && typeof document !== "undefined") {
+  bootContent({ doc: document, win: window, browserApi: extensionApi });
 }

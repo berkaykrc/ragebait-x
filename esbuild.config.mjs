@@ -4,9 +4,8 @@
 // in as manifest.json (never `manifest.mv2.json`) so that `dist-mv2/` can be
 // loaded directly by Firefox via about:debugging.
 //
-// manifest.mv3.json does not exist until Task 20. A missing MV3 manifest is
-// NOT an error before then: the mv3 root is still built (JS + options.html),
-// it just carries no manifest. See Task 1 ruling in the ledger.
+// Both targets are loadable extension roots; a missing target manifest is a
+// build error rather than a partially usable artifact.
 
 import { build } from "esbuild";
 import { access, copyFile, mkdir, readdir, rm } from "node:fs/promises";
@@ -43,7 +42,9 @@ function copyManifestPlugin(target, outdir) {
     name: "copy-manifest",
     setup(buildApi) {
       buildApi.onEnd(async () => {
-        if (!(await exists(src))) return; // optional until Task 20
+        if (!(await exists(src))) {
+          throw new Error(`Missing manifest for ${target}: ${src}`);
+        }
         await copyFile(src, dest);
       });
     },

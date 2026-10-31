@@ -181,6 +181,33 @@ test("background: dedupe one network call", async () => {
   assert.equal(b.state, "result");
 });
 
+test("background: rejected in-flight entry does not orphan later requests", async () => {
+  const dedupe = new Map();
+  let calls = 0;
+  const fetchReplies = () => {
+    calls += 1;
+    return calls === 1
+      ? Promise.reject(new Error("worker request failed"))
+      : Promise.resolve({ ok: true, replies: makeReplies(6) });
+  };
+
+  const first = await handleScoreRequest("recoverable", {
+    dedupe,
+    fetchReplies,
+    skipCache: true,
+  });
+  const second = await handleScoreRequest("recoverable", {
+    dedupe,
+    fetchReplies,
+    skipCache: true,
+  });
+
+  assert.equal(first.state, "error");
+  assert.equal(second.state, "result");
+  assert.equal(calls, 2);
+  assert.equal(dedupe.size, 0);
+});
+
 test("background: cancel releases dedupe", async () => {
   const storage = makeStorage();
   const now = () => 1000;

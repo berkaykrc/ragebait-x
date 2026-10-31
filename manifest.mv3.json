@@ -31,7 +31,8 @@
     }
   ],
   "host_permissions": [
-    "https://api.fxtwitter.com/*"
+    "https://api.fxtwitter.com/*",
+    "https://ragebait-proxy.dontseemyass.workers.dev/*"
   ],
   "permissions": [
     "storage"

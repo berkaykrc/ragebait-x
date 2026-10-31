@@ -24,8 +24,6 @@ import {
 } from "../ai/client.js";
 import { loadSettings, SETTINGS_KEY } from "../options/index.js";
 
-const DEFAULT_DEDUPE = new Map();
-
 function isFn(v) {
   return typeof v === "function";
 }
@@ -101,7 +99,9 @@ function resolveDeps(deps = {}) {
     };
   }
 
-  const dedupeMap = d.dedupe ?? d.dedupeMap ?? d.inflight ?? DEFAULT_DEDUPE;
+  // Service workers can be stopped and restarted at any time. Keep this map
+  // scoped to one background instance and use the cache as the durable state.
+  const dedupeMap = d.dedupe ?? d.dedupeMap ?? d.inflight ?? new Map();
 
   const consume = d.consumeDailyProfile ?? d.consumeQuota ??
     (d.quota && isFn(d.quota.consume) ? d.quota.consume.bind(d.quota) : null) ??
@@ -787,9 +787,13 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   return bg;
 }
 
-if (typeof browser !== "undefined") {
+const extensionApi = typeof browser !== "undefined"
+  ? browser
+  : (typeof chrome !== "undefined" ? chrome : null);
+
+if (extensionApi) {
   try {
-    wireBrowserRuntime(browser, {});
+    wireBrowserRuntime(extensionApi, {});
   } catch { /* ignore */ }
 }
 
