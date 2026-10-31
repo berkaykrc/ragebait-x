@@ -1,0 +1,20 @@
+name = "ragebait-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# KV namespace for shared 48h analysis cache and daily quota tracking
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "2b54daef757f4e28a6338d874a174f84"
+
+[vars]
+PROXY_ENABLED = "true"
+BAND_HIGH = "0.75"
+BAND_MEDIUM = "0.45"
+SHOW_NUMBER = "false"
+CLOUDFLARE_ACCOUNT_ID = "fe941e04eee6db1835c906a459435c1f"
+# API keys and secrets must only live in the Worker environment, never in the extension:
+# - CLOUDFLARE_API_TOKEN (Clef via Workers AI)
+# - CLOUDFLARE_ACCOUNT_ID (var, not secret)
+# - TYPESAFE_API_KEY / JEV_API_KEY
+# - INSTALL_TOKEN_SECRET
