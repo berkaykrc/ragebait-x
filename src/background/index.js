@@ -17,6 +17,12 @@ import {
   MAX_DAILY_PROFILES,
 } from "./quota-local.js";
 import { makeScoreResponse } from "./protocol.js";
+import {
+  analyzeWithAi as defaultAnalyzeWithAi,
+  fetchConfig,
+  getInstallToken,
+} from "../ai/client.js";
+import { loadSettings, SETTINGS_KEY } from "../options/index.js";
 
 const DEFAULT_DEDUPE = new Map();
 
@@ -113,6 +119,13 @@ function resolveDeps(deps = {}) {
   const browserApi = d.browserApi ?? d.browser ?? null;
   const onResponse = isFn(d.onResponse) ? d.onResponse : null;
   const onResult = isFn(d.onResult) ? d.onResult : null;
+  const analyzeWithAi = d.analyzeWithAi ?? defaultAnalyzeWithAi;
+  const settings = d.settings ?? d.currentSettings ?? { mode: "heuristic" };
+  const proxyUrl = d.proxyUrl ?? d.config?.proxyUrl;
+  const installToken = d.installToken ?? null;
+  // Background diagnostics: silent by default, so tests and library callers
+  // stay clean. The live wiring injects a console-based logger.
+  const log = isFn(d.log) ? d.log : () => {};
 
   return {
     now,
@@ -134,6 +147,11 @@ function resolveDeps(deps = {}) {
     browserApi,
     onResponse,
     onResult,
+    analyzeWithAi,
+    settings,
+    proxyUrl,
+    installToken,
+    log,
     skipCache: !!d.skipCache,
   };
 }
@@ -200,6 +218,14 @@ export async function handleScoreRequest(handle, deps = {}) {
         try {
           const cached = await r.cache.get(h);
           if (cached && cached.value && typeof cached.value === "object") {
+            r.log(
+              "score",
+              h,
+              "cache hit ->",
+              cached.value.state,
+              "model:",
+              cached.value.model,
+            );
             return cached.value;
           }
         } catch { /* ignore */ }
@@ -266,11 +292,22 @@ export async function handleScoreRequest(handle, deps = {}) {
         state = replies.length >= minReplies ? "result" : "insufficient";
       }
 
+      r.log(
+        "score",
+        h,
+        "fetch:",
+        ok ? "ok" : `failed (${reason})`,
+        "replies:",
+        replies.length,
+        "-> state:",
+        state,
+      );
+
       let band = undefined;
-      let score = null;
+      let _score = null;
+      let features = null;
 
       if (state === "result" || state === "estimated") {
-        let features = null;
         try {
           features = r.computeFeatures(replies);
         } catch {
@@ -285,22 +322,118 @@ export async function handleScoreRequest(handle, deps = {}) {
         if (composed && composed.insufficient) {
           state = "insufficient";
           band = undefined;
-          score = null;
+          _score = null;
         } else if (composed) {
           band = composed.band;
-          score = typeof composed.score === "number" ? composed.score : null;
+          _score = typeof composed.score === "number" ? composed.score : null;
         } else {
           // Could not compose: degrade to error unless partial.
           state = replies.length >= minReplies ? "estimated" : "error";
         }
       }
 
-      const percent = typeof score === "number"
-        ? Math.round(score * 100)
-        : null;
+      // Task 15: AI Upgrade Step.
+      // percent is set ONLY when config.showNumber is true AND the AI path produced a score.
+      let percent = null;
+      let heuristic = state === "result" || state === "estimated";
+      let model = "heuristic";
 
-      // Heuristic flag stays true for any computed band.
-      const heuristic = state === "result" || state === "estimated";
+      const settings = r.settings || {};
+      // Consent gate: AI modes are blocked until the user accepts the
+      // data-handling notice (Task 19). Fall back to heuristic otherwise.
+      const consented = settings.consentAccepted === true;
+      const mode =
+        (settings.mode && settings.mode !== "heuristic" && !consented)
+          ? "heuristic"
+          : (settings.mode || "heuristic");
+
+      if (
+        (state === "result" || state === "estimated") &&
+        mode !== "heuristic" &&
+        features
+      ) {
+        try {
+          const aiOptions = {
+            mode,
+            proxyUrl: settings.proxyUrl || r.proxyUrl,
+            byokEndpoint: settings.byokEndpoint,
+            apiKey: settings.apiKey,
+            installToken: r.installToken,
+            proxyEnabled: settings.proxyEnabled ?? r.config?.proxyEnabled,
+            thresholds: r.config?.bandThresholds,
+          };
+          const aiState = {
+            handle: h,
+            features,
+            replySample: replies.slice(0, 12).map((rep) =>
+              typeof rep === "string" ? rep : (rep?.text || "")
+            ),
+          };
+
+          r.log(
+            "score",
+            h,
+            `AI attempt: mode=${mode} consented=${consented}`,
+            mode === "proxy" ? "proxyUrl set" : "endpoint:",
+            mode === "byok" ? !!settings.byokEndpoint : "(proxy)",
+          );
+          const aiRes = await r.analyzeWithAi(aiState, aiOptions, r.fetchImpl);
+          if (aiRes && aiRes.state === "quota") {
+            r.log("score", h, "AI -> quota");
+            state = "quota";
+            percent = null;
+          } else if (aiRes && aiRes.band) {
+            r.log(
+              "score",
+              h,
+              "AI ->",
+              aiRes.band,
+              aiRes.percent ?? "",
+              "via",
+              aiRes.model,
+            );
+            band = aiRes.band;
+            model = aiRes.model || mode;
+            heuristic = false;
+            band = aiRes.band;
+            model = aiRes.model || mode;
+            heuristic = false;
+            if (
+              r.config?.showNumber === true && typeof aiRes.percent === "number"
+            ) {
+              percent = Math.round(aiRes.percent);
+            } else {
+              percent = null;
+            }
+          } else {
+            r.log(
+              "score",
+              h,
+              "AI -> fallback:",
+              aiRes?.fallback ?? "unknown",
+              "(heuristic band kept)",
+            );
+          }
+        } catch (_aiErr) {
+          // AI error / 502 -> retains heuristic band, never error
+          r.log(
+            "score",
+            h,
+            "AI threw ->",
+            _aiErr?.message ?? _aiErr,
+            "(heuristic band kept)",
+          );
+          percent = null;
+          heuristic = true;
+        }
+      } else {
+        r.log(
+          "score",
+          h,
+          `AI skipped (state=${state}, mode=${mode},`,
+          `consented=${consented}, features=${!!features})`,
+        );
+      }
 
       // Local daily quota check (after we have a band, so quota state keeps it).
       let quotaAllowed = true;
@@ -324,6 +457,7 @@ export async function handleScoreRequest(handle, deps = {}) {
         band,
         percent,
         heuristic,
+        model,
         fetchedAt: now(),
       };
 
@@ -387,18 +521,24 @@ export function createBackground(deps = {}) {
   const sessions = new Map();
 
   const handleScoreRequestBound = (handle, extra = {}) =>
-    handleScoreRequest(handle, { ...r, ...extra, dedupeMap, token, config });
+    handleScoreRequest(handle, {
+      ...r,
+      ...extra,
+      dedupeMap,
+      token,
+      config: extra.config ?? config,
+    });
 
   const cancelBound = (handle) =>
     cancelScoreRequest(handle, { ...r, dedupeMap });
 
-  async function handleMessage(message, _sender) {
+  async function handleMessage(message, _sender, extra = {}) {
     if (!message || typeof message !== "object" || Array.isArray(message)) {
       return null;
     }
 
     if (message.type === "rb:config") {
-      return { token, config };
+      return { token, config: extra.config ?? config };
     }
 
     if (message.type === "rb:score-request") {
@@ -410,6 +550,7 @@ export function createBackground(deps = {}) {
 
       const result = await handleScoreRequestBound(handle, {
         forceRefresh: false,
+        ...extra,
       });
 
       const response = {
@@ -431,7 +572,14 @@ export function createBackground(deps = {}) {
         browserApi && browserApi.runtime && isFn(browserApi.runtime.sendMessage)
       ) {
         try {
-          browserApi.runtime.sendMessage(response);
+          // Firefox returns a rejected promise when no tab has a content
+          // script listening (e.g. the initiating tab was closed). The
+          // broadcast is a best-effort push-path duplication; a rejection is
+          // noise, not delivery failure.
+          const broadcast = browserApi.runtime.sendMessage(response);
+          if (broadcast && typeof broadcast.then === "function") {
+            broadcast.catch(() => {/* ignore */});
+          }
         } catch { /* ignore */ }
       }
       return response;
@@ -446,6 +594,7 @@ export function createBackground(deps = {}) {
 
       const result = await handleScoreRequestBound(handle, {
         forceRefresh: true,
+        ...extra,
       });
 
       const response = {
@@ -467,7 +616,11 @@ export function createBackground(deps = {}) {
         browserApi && browserApi.runtime && isFn(browserApi.runtime.sendMessage)
       ) {
         try {
-          browserApi.runtime.sendMessage(response);
+          // Same broadcast-rejection silencing as rb:score-request above.
+          const broadcast = browserApi.runtime.sendMessage(response);
+          if (broadcast && typeof broadcast.then === "function") {
+            broadcast.catch(() => {/* ignore */});
+          }
         } catch { /* ignore */ }
       }
       return response;
@@ -518,47 +671,125 @@ export const createHandler = createBackground;
 export const bootBackground = createBackground;
 
 // Auto-boot in the extension (background) world only.
+//
+// The saved settings MUST be read per request, not at boot: nothing on the
+// options page pushes a reload of this background, so the user's proxy/BYOK
+// choice, consent flag and proxy URL would otherwise go live only after an
+// extension restart. The same request-time read also generates and persists
+// the install token for the worker (X-Install-Token).
+export function wireBrowserRuntime(browserApi, deps = {}) {
+  if (
+    !browserApi || !browserApi.runtime ||
+    !browserApi.runtime.onMessage ||
+    !browserApi.runtime.onMessage.addListener
+  ) {
+    return null;
+  }
+
+  const storage = browserApi.storage && browserApi.storage.local
+    ? {
+      async get(key) {
+        const res = await browserApi.storage.local.get(key);
+        return res && Object.prototype.hasOwnProperty.call(res, key)
+          ? res[key]
+          : null;
+      },
+      async set(key, value) {
+        await browserApi.storage.local.set({ [key]: value });
+      },
+    }
+    : null;
+
+  // Load the saved settings and the install token fresh for every score
+  // request. Never throws: any storage failure leaves the defaults in place.
+  const requestDeps = async () => {
+    if (!storage) return {};
+    try {
+      const settings = await loadSettings(storage);
+      // getInstallToken speaks the items-shaped storage dialect used by
+      // browser.storage.local (get(keys) -> Record, set(items)), so adapt
+      // the (key, value) seam to it here.
+      const installToken = await getInstallToken({
+        get: (key) => storage.get(key).then((value) => ({ [key]: value })),
+        set: (items) =>
+          Promise.all(
+            Object.entries(items).map(([k, v]) => storage.set(k, v)),
+          ),
+      });
+      const config = settings.mode === "proxy"
+        ? await fetchConfig(
+          settings.proxyUrl,
+          deps.fetchImpl ?? globalThis.fetch,
+        )
+        : null;
+      return { settings, installToken, config: config ?? {} };
+    } catch (err) {
+      console.warn("ragebait:bg: request deps load failed:", err);
+      return {};
+    }
+  };
+
+  const bg = createBackground({
+    browserApi,
+    storage,
+    fetchImpl: typeof fetch !== "undefined" ? fetch : undefined,
+    now: () => Date.now(),
+    // Diagnosability: the page world logs; the background must too, or a
+    // silent stop is invisible (Bug report: empty wrangler tail).
+    log: (...args) => console.info("ragebait:bg:", ...args),
+    ...deps,
+  });
+
+  // Boot line: proves the new background is actually running after a reload.
+  // Absence of this line after a reload means the background script failed to
+  // load (or the add-on is still running a stale build).
+  console.info(
+    "ragebait:bg: wired — storage:",
+    !!storage,
+    "| settings key:",
+    SETTINGS_KEY,
+  );
+
+  browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    const p = (async () => {
+      if (
+        message && typeof message === "object" &&
+        (message.type === "rb:score-request" ||
+          message.type === "rb:score-refresh" ||
+          message.type === "rb:config")
+      ) {
+        const extra = await requestDeps();
+        if (message.type === "rb:score-request") {
+          return bg.handleMessage(message, sender, extra);
+        }
+        return bg.handleMessage(message, sender, extra);
+      }
+      return bg.handleMessage(message, sender);
+    })();
+    if (p && typeof p.then === "function") {
+      p.then((res) => {
+        try {
+          if (sendResponse) sendResponse(res);
+        } catch { /* ignore */ }
+      }).catch(() => {
+        try {
+          if (sendResponse) sendResponse(null);
+        } catch { /* ignore */ }
+      });
+    } else {
+      try {
+        if (sendResponse) sendResponse(p);
+      } catch { /* ignore */ }
+    }
+    return true;
+  });
+
+  return bg;
+}
+
 if (typeof browser !== "undefined") {
   try {
-    const bg = createBackground({
-      browserApi: browser,
-      storage: browser.storage && browser.storage.local
-        ? {
-          async get(key) {
-            const res = await browser.storage.local.get(key);
-            return res && Object.prototype.hasOwnProperty.call(res, key)
-              ? res[key]
-              : null;
-          },
-          async set(key, value) {
-            await browser.storage.local.set({ [key]: value });
-          },
-        }
-        : null,
-      fetchImpl: typeof fetch !== "undefined" ? fetch : undefined,
-      now: () => Date.now(),
-    });
-    if (browser.runtime && isFn(browser.runtime.onMessage.addListener)) {
-      browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        const p = bg.handleMessage(message, sender);
-        if (p && typeof p.then === "function") {
-          p.then((res) => {
-            try {
-              if (sendResponse) sendResponse(res);
-            } catch { /* ignore */ }
-          }).catch(() => {
-            try {
-              if (sendResponse) sendResponse(null);
-            } catch { /* ignore */ }
-          });
-        } else {
-          try {
-            if (sendResponse) sendResponse(p);
-          } catch { /* ignore */ }
-        }
-        return true;
-      });
-    }
+    wireBrowserRuntime(browser, {});
   } catch { /* ignore */ }
 }
 

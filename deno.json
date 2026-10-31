@@ -16,7 +16,11 @@
       // setImmediate and process are flagged even though they are the
       // correct API here. Test files rely on setImmediate for microtask
       // settling after a promise chain.
-      "exclude": ["no-node-globals", "no-import-assertions"]
+      "exclude": [
+        "no-node-globals",
+        "no-process-global",
+        "no-import-assertions"
+      ]
     }
   },
   "fmt": {

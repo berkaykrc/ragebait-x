@@ -7,14 +7,17 @@
 A Firefox extension (MV2) that shows a ragebait / engagement-bait band inside X
 (Twitter) hovercards, based on the target account's replies.
 
-Heuristic-only in this release: no AI layer, no cloud calls, no API keys. The
-scoring weights are initial placeholders pending calibration (Plan 3).
+The extension supports local heuristic scoring, a consent-gated Worker proxy,
+and BYOK AI mode. Proxy mode sends the extracted feature state and a bounded
+reply sample to the configured Worker, which calls the Clef model and returns a
+band and score.
 
 ## Status
 
 - Latest release: [Releases](../../releases/latest). The version of record is
   `version` in `manifest.mv2.json`, which the release workflow bumps.
-- Mode: heuristic only (`MODEL_VERSION = "h1"`, `FEATURE_VERSION = "f1"`)
+- Modes: heuristic, proxy, and BYOK (`MODEL_VERSION = "h1"`,
+  `FEATURE_VERSION = "f1"`)
 - Browser: Firefox (MV2). Chrome/MV3 is post-v1 and unverified.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
 
@@ -25,11 +28,18 @@ scoring weights are initial placeholders pending calibration (Plan 3).
 3. It computes a feature vector (caps, exclamation, rhetorical questions, target
    concentration, repeat-parent ratio, hashtag density, likes per reply, burst
    ratio, and a TR/EN ragebait lexicon) and composes a 0-1 score.
-4. A band (Low / Medium / High) is rendered in the hovercard.
-5. Accounts with fewer than 5 qualifying replies show "insufficient data".
+4. In proxy or BYOK mode, the feature state and up to 12 reply texts are sent to
+   the selected AI endpoint after the user accepts the data-handling notice.
+5. The AI band replaces the heuristic band when the model succeeds; failures
+   retain the heuristic result.
+6. A band (Low / Medium / High) is rendered in the hovercard. The numeric
+   percentage is shown only when the Worker `/config` response enables
+   `showNumber`.
+7. Accounts with fewer than 5 qualifying replies show "insufficient data".
 
 Results are cached locally per state with a per-state TTL, so re-hovering an
-account does not re-fetch.
+account does not re-fetch. Local results use a 7-day TTL; proxy analyses also
+use the Worker's shared 48-hour cache.
 
 ## Brand
 
@@ -69,14 +79,16 @@ this alpha).
 - In **all** modes the extension contacts FxTwitter
   (`https://api.fxtwitter.com`) to fetch the target account's replies. That
   fetch is an off-device disclosure of the hovered handle. It is disclosed on
-  the options page (`src/options/index.html`); **there is no first-run consent
-  screen yet** — that ships with the AMO compliance work, and this alpha is not
-  AMO-submitted.
-- The Cloudflare AI/proxy mode is **not** in v1. No reply text leaves the device
-  in this release.
-- No API keys ship in the extension. v1's only network target is FxTwitter.
+  the options page (`src/options/index.html`).
+- Heuristic mode keeps AI processing local. Proxy and BYOK modes require the
+  data-handling notice to be accepted before sending feature state and sampled
+  reply text to the selected endpoint.
+- Proxy mode sends data to the configured Worker, which may forward the sample
+  to Clef and Jev. BYOK mode sends it to the user's configured endpoint with the
+  user's API key. No API keys are bundled in the extension.
 - Results are stored in `browser.storage.local` on the user's machine; there is
-  no server-side retention and no user account.
+  no extension user account. Proxy responses may be shared through the Worker's
+  48-hour cache.
 - Results are shown only to the hovering user. There are no public lists.
 
 ## Scripts
@@ -111,10 +123,10 @@ Notes for contributors:
 
 ## Roadmap
 
-- **Plan 2 - AI layer**: Worker proxy (Clef + Jev) and AI scoring in the
-  extension; proxy and BYOK modes become functional.
+- **Plan 2 - AI layer**: complete for the Worker proxy path; BYOK support and
+  diagnostics are also wired in the extension.
 - **Plan 3 - Calibration**: labelled set, reliability report, and enabling the
-  numeric percent in the hovercard.
+  numeric percent in the hovercard through the Worker's `showNumber` gate.
 - **Phase 4 - Compliance & release**: AMO submission, first-run consent screen,
   `data_collection_permissions` declaration, signed `.xpi`, `update_url`, real
   gecko id.
