@@ -13,8 +13,11 @@ BAND_HIGH = "0.75"
 BAND_MEDIUM = "0.45"
 SHOW_NUMBER = "false"
 CLOUDFLARE_ACCOUNT_ID = "fe941e04eee6db1835c906a459435c1f"
-# API keys and secrets must only live in the Worker environment, never in the extension:
+# This Worker is a public optional proxy. Its URL is discoverable by design;
+# CORS and install tokens are not authentication or proof of an official client.
+# Open-source code documents processing behavior. API keys and deployment
+# secrets must only live in the Worker environment, never in the extension:
 # - CLOUDFLARE_API_TOKEN (Clef via Workers AI)
-# - CLOUDFLARE_ACCOUNT_ID (var, not secret)
 # - TYPESAFE_API_KEY / JEV_API_KEY
-# - INSTALL_TOKEN_SECRET
+# - INSTALL_TOKEN_SECRET (quota/abuse control only, not client authentication)
+# CLOUDFLARE_ACCOUNT_ID is a public account identifier, not a secret.
