@@ -27,11 +27,27 @@ function makeRequest() {
   });
 }
 
+// The model path is only reached when quota protection is available (fail
+// closed), so these tests provide an empty KV store to get past the quota
+// gate and exercise analyze()'s error wrapping.
+const EMPTY_KV = {
+  get() {
+    return Promise.resolve(null);
+  },
+  put() {
+    return Promise.resolve();
+  },
+};
+
 const FAILING_FETCH = () => Promise.reject(new Error("upstream down"));
 
 test("router: /analyze non-200 (ai_unavailable) carries CORS headers", async () => {
   // No model env configured -> callClef/callJev both fail -> analyze 502.
-  const res = await worker.fetch(makeRequest(), {}, FAILING_FETCH);
+  const res = await worker.fetch(
+    makeRequest(),
+    { CACHE_KV: EMPTY_KV },
+    FAILING_FETCH,
+  );
 
   assert.equal(res.status, 502);
   assert.equal(
@@ -52,7 +68,7 @@ test("router: /analyze 400 (invalid state) carries CORS headers", async () => {
     },
     body: JSON.stringify({ state: { handle: "" } }),
   });
-  const res = await worker.fetch(req, {}, FAILING_FETCH);
+  const res = await worker.fetch(req, { CACHE_KV: EMPTY_KV }, FAILING_FETCH);
 
   assert.equal(res.status, 400);
   assert.equal(res.headers.get("Access-Control-Allow-Origin"), "*");

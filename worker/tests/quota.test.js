@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   checkAndConsumeQuota,
+  extractQuotaIdentity,
   getQuotaKey,
-  signInstallToken,
-  verifyInstallToken,
+  MAX_QUOTA_IDENTITY_LENGTH,
 } from "../src/quota.js";
 
 function createFakeKV() {
@@ -72,34 +72,70 @@ test("quota: two distinct install tokens get independent buckets", async () => {
   assert.equal(bFresh.allowed, true);
 });
 
-test("quota: verifyInstallToken verifies valid HMAC signature and rejects invalid", async () => {
-  const secret = "super-secret-key-123";
-  const date = "2026-10-27";
-  const token = "install-token-abc";
+test("quota: checkAndConsumeQuota throws when the store is unusable", async () => {
+  await assert.rejects(() => checkAndConsumeQuota(null, "tok-1", 2));
+  await assert.rejects(() =>
+    checkAndConsumeQuota({ put() {}, get: undefined }, "tok-1", 2)
+  );
+});
 
-  const validSig = await signInstallToken(token, secret, date);
+// Policy: X-Install-Token is a forgeable quota identifier (quota accounting /
+// abuse resistance only), NOT authentication. X-Install-Signature is
+// RESERVED for a future server-issued credential flow and is not honored
+// today, even when INSTALL_TOKEN_SECRET is configured: the public extension
+// cannot safely hold a shared secret, so the secret must never gate this
+// path (see the security model comment in worker/src/quota.js).
 
-  const reqValid = new Request("https://api.test/analyze", {
-    headers: {
-      "X-Install-Token": token,
-      "X-Install-Signature": validSig,
-    },
+function requestWithHeaders(headers) {
+  return new Request("https://api.test/analyze", { headers });
+}
+
+test("quota: extractQuotaIdentity reads the header token", () => {
+  const req = requestWithHeaders({ "X-Install-Token": "tok-abc" });
+  assert.equal(extractQuotaIdentity(req, undefined), "tok-abc");
+});
+
+test("quota: extractQuotaIdentity falls back to the documented body field", () => {
+  const req = requestWithHeaders({});
+  assert.equal(
+    extractQuotaIdentity(req, { state: {}, installToken: "tok-xyz" }),
+    "tok-xyz",
+  );
+});
+
+test("quota: missing token -> null (bounded install_token_required upstream)", () => {
+  const req = requestWithHeaders({});
+  assert.equal(extractQuotaIdentity(req, {}), null);
+  assert.equal(extractQuotaIdentity(req, { installToken: "" }), null);
+  assert.equal(extractQuotaIdentity(req, { installToken: "   " }), null);
+});
+
+test("quota: oversized or unprintable tokens are rejected (KV key hygiene)", () => {
+  const longToken = "t".repeat(MAX_QUOTA_IDENTITY_LENGTH + 1);
+  const reqLong = requestWithHeaders({ "X-Install-Token": longToken });
+  assert.equal(extractQuotaIdentity(reqLong, undefined), null);
+
+  const maxLength = "t".repeat(MAX_QUOTA_IDENTITY_LENGTH);
+  const reqMax = requestWithHeaders({ "X-Install-Token": maxLength });
+  assert.equal(extractQuotaIdentity(reqMax, undefined), maxLength);
+
+  const reqSpace = requestWithHeaders({ "X-Install-Token": "tok abc" });
+  assert.equal(extractQuotaIdentity(reqSpace, undefined), null);
+
+  const ctrl = String.fromCharCode(0x01) + "tok";
+  const reqCtrl = requestWithHeaders({ "X-Install-Token": ctrl });
+  assert.equal(extractQuotaIdentity(reqCtrl, undefined), null);
+});
+
+test("quota: arbitrary token is accepted as identity and X-Install-Signature is ignored (no client HMAC authentication)", () => {
+  const req = requestWithHeaders({
+    "X-Install-Token": "forged-arbitrary-token",
+    // Signature present-but-bogus: deliberately not verified. INSTALL_TOKEN_
+    // SECRET, when configured, is a server-side secret for future identity
+    // derivation; it must never gate this path (see router test with
+    // INSTALL_TOKEN_SECRET configured).
+    "X-Install-Signature": "deadbeef-not-a-real-signature",
   });
 
-  const validResult = await verifyInstallToken(reqValid, {
-    INSTALL_TOKEN_SECRET: secret,
-  }, date);
-  assert.equal(validResult, true);
-
-  const reqInvalid = new Request("https://api.test/analyze", {
-    headers: {
-      "X-Install-Token": token,
-      "X-Install-Signature": "invalid-hex-signature-12345",
-    },
-  });
-
-  const invalidResult = await verifyInstallToken(reqInvalid, {
-    INSTALL_TOKEN_SECRET: secret,
-  }, date);
-  assert.equal(invalidResult, false);
+  assert.equal(extractQuotaIdentity(req, undefined), "forged-arbitrary-token");
 });
