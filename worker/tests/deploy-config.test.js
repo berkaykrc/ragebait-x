@@ -5,7 +5,7 @@
 // that could be skipped or tricked by a TOML parser upgrade.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -25,13 +25,28 @@ const ALLOWED_VARS_KEYS = [
   "CLOUDFLARE_ACCOUNT_ID",
 ];
 
-// Names that must never appear with a literal value in the deploy config.
+// Names that must never appear with a literal value in the deploy config or
+// the Worker source. Mirrors the "known deployment secret assignment" list in
+// scripts/check-artifacts.mjs so both gates name the same secret set.
 const SECRET_VAR_NAMES = [
   "CLOUDFLARE_API_TOKEN",
+  "CLEF_API_KEY",
   "TYPESAFE_API_KEY",
   "JEV_API_KEY",
   "INSTALL_TOKEN_SECRET",
 ];
+
+/**
+ * Regex for a hardcoded literal assigned to a known secret name. Matches ANY
+ * quoted value, including the empty string: the promise is "no literal value
+ * at all", not "no non-empty literal value".
+ *
+ * @param {string} name
+ * @returns {RegExp}
+ */
+function secretAssignmentRegex(name) {
+  return new RegExp(`\\b${name}\\s*=\\s*["'][^"']*["']`, "i");
+}
 
 function readWranglerToml() {
   return readFileSync(WRANGLER_TOML, "utf8");
@@ -187,17 +202,24 @@ test("task5: staging KV namespace differs from production and is a labelled plac
   );
 });
 
-test("task5: [vars] tables hold only the documented public keys", () => {
+test("task5: all three environments declare a [vars] table", () => {
   const toml = readWranglerToml();
   const tables = parseVarsTables(toml);
 
-  assert.ok(tables.size >= 1, "at least the top-level [vars] table exists");
-  for (const [env, vars] of tables) {
-    const keys = Object.keys(vars).sort();
+  // Wrangler does not inherit [vars] into named environments: a dropped
+  // staging/production vars block would leave that environment on code
+  // defaults (proxyEnabled false etc.) with a green gate. Every deploy
+  // environment must declare the full public table explicitly.
+  for (const deployEnv of ["top", "production", "staging"]) {
+    assert.ok(
+      tables.has(deployEnv),
+      `wrangler.toml must declare a [vars] table for the ${deployEnv} environment`,
+    );
+    const keys = Object.keys(tables.get(deployEnv)).sort();
     assert.deepEqual(
       keys,
       [...ALLOWED_VARS_KEYS].sort(),
-      `the ${env} [vars] table must stay within the documented public key set`,
+      `the ${deployEnv} [vars] table must stay within the documented public key set`,
     );
   }
 });
@@ -205,11 +227,12 @@ test("task5: [vars] tables hold only the documented public keys", () => {
 test("task5: no secret-shaped assignment appears anywhere in wrangler.toml", () => {
   const toml = readWranglerToml();
 
-  // Known secret names must never carry a literal value, even commented out.
+  // Known secret names must never carry a literal value, even commented out
+  // — including the empty-string trap that a 1+-chars regex would pass.
   for (const name of SECRET_VAR_NAMES) {
     assert.doesNotMatch(
       toml,
-      new RegExp(`\\b${name}\\s*=\\s*["'][^"']+`, "i"),
+      secretAssignmentRegex(name),
       `${name} must only be set through "npx wrangler secret put", never written into wrangler.toml`,
     );
   }
@@ -220,4 +243,38 @@ test("task5: no secret-shaped assignment appears anywhere in wrangler.toml", () 
     /\b[\w-]*(api[-_]?key|secret|password|token)[\w-]*\s*=\s*["'][^"']{16,}["']/i,
     "wrangler.toml must not contain credential-shaped assignments",
   );
+});
+
+test("task5: worker source contains no hardcoded credential assignments", () => {
+  // The artifacts gate (scripts/check-artifacts.mjs) covers build output;
+  // deno lint is not a credential scanner; nothing else reviews worker/src.
+  // Same two patterns as the wrangler.toml check so a future hardcoded
+  // credential in the Worker fails this suite instead of shipping green.
+  const sourceDir = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "src",
+  );
+
+  const files = readdirSync(sourceDir, {
+    recursive: true,
+    encoding: "utf8",
+  }).filter((file) => /\.js$/.test(file));
+  assert.ok(files.length > 0, "worker/src must contain JS source to scan");
+
+  for (const file of files) {
+    const source = readFileSync(path.join(sourceDir, file), "utf8");
+    for (const name of SECRET_VAR_NAMES) {
+      assert.doesNotMatch(
+        source,
+        secretAssignmentRegex(name),
+        `${file}: ${name} must never be hardcoded in worker/src; read it from \`env\` only (set via wrangler secret)`,
+      );
+    }
+    assert.doesNotMatch(
+      source,
+      /\b[\w-]*(api[-_]?key|secret|password|token)[\w-]*\s*=\s*["'][^"']{16,}["']/i,
+      `${file}: credential-shaped literal assignment in worker/src`,
+    );
+  }
 });

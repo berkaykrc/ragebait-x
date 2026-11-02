@@ -3,7 +3,10 @@
 Everything in an **Operator step** subsection is work done in the
 Cloudflare dashboard / wrangler CLI by the person deploying. This repository
 cannot enforce those actions; repository-enforced checks are stated
-separately and are covered by `npm run check`.
+separately — the `task5:` assertions in `worker/tests/deploy-config.test.js`
+(secrets and environment contract of `worker/wrangler.toml` and
+`worker/src`) and in `worker/tests/config.test.js` (no debug routes, no
+secrets in `/config`) — and are covered by `npm run check`.
 
 ## Worker (Cloudflare)
 
@@ -43,6 +46,11 @@ the Cloudflare account; this file cannot enforce it.
 3. Use different token values per environment. A staging leak must never
    compromise production, and staging traffic must never pollute production
    cache or quota state.
+4. When the release gate lands (Task 6), consider the deploy-time complement
+   to these text-level checks: Wrangler v4 supports a non-inheritable
+   `secrets` config key with a `required` list, so a deploy fails when a
+   per-environment secret is missing instead of the Worker silently running
+   without it.
 
 ### Operator step: minimum-scope Cloudflare access
 
