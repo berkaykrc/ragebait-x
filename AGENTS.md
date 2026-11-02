@@ -29,6 +29,19 @@ directory argument is loaded as a module and fails
 (`Cannot find module '.../tests'`, exit 1). The script uses globs for that
 reason.
 
+The same trap applies to direct invocations: `node --test tests/` or
+`node --test worker/tests/` fails the same way (a single wrapper failure
+instead of running the suites). Use the glob form:
+
+```
+node --test 'tests/**/*.test.js'
+node --test 'worker/tests/**/*.test.js'
+node --test tests/shared/security.test.js   # single suite (see above)
+```
+
+To run a subset of suites, quote a glob — e.g.
+`node --test 'tests/shared/*.test.js'` — never the bare directory.
+
 ## How it runs
 
 Two separate JavaScript worlds, and the split is the whole design:

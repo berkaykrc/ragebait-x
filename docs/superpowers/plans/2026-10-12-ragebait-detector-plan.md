@@ -40,6 +40,7 @@ All 29 distinct findings are resolved below. The most serious were:
 | D12 | **MV2 is the shipping target. The dev/CI baseline is Firefox Nightly `160.0a1`** (the version the user confirmed in use). The MV3 minimum-version question is removed from the critical path entirely: MV3 exists only for Chrome, Firefox does not need it, and stable Firefox runs the MV2 build | Resolving the `background.service_worker` floor would have blocked a Firefox-only user for a Chrome-only artifact. Since the actual goal is normal Firefox, MV3 is not worth an unresolved version dependency. Task 20 is explicitly post-v1 and optional. |
 | D13 | **The session token is explicitly NOT a secret.** Renamed from "capability nonce" to session-correlation token; §3 now states the token is DOM-readable and lists the five structural controls that form the real boundary | Found by the `ling-3.1-flash` review: v1/v2 delivered the token inside `<script id="ragebait-config">`, which any same-origin script can read. Calling that "spoofing protection" was a false security claim. A page-world secret is impossible; the honest model is that the page may only *request* work, never *supply* it. |
 | D14 | **Staged render is deleted entirely.** One request, one response, one line render. The only latency requirement is the **≤200ms cache hit**; cold-miss latency is unconstrained | v1's "page-1 sketch → page-2 upgrade" was unreachable (page 1 with ≥5 replies stops the loop, so there is no page 2; page 1 with <5 cannot produce a score). The user confirmed latency beyond the 200ms cache hit does not matter, so the whole staging mechanism is removed rather than patched — less protocol, no `onPage`, no `stage` field, no half-page bands. |
+| D15 | **AMO signing does not make an unlisted GitHub install AMO-hosted.** Public AMO listings receive automatic updates from AMO. A signed unlisted `.xpi` installed from GitHub is self-distributed; for automatic updates it needs a verified HTTPS update manifest referenced by `browser_specific_settings.gecko.update_url`. | Mozilla Extension Workshop's current self-distribution and update guidance; the add-on is confirmed unlisted in AMO. |
 
 ---
 
@@ -67,7 +68,7 @@ Success criteria:
 | Local model | None in this phase (savasy domain-mismatched, no ONNX build). Later: TurkishBERTweet evaluation | Architecture review |
 | Display | Band + side-by-side calibrated number: `Ragebait: High · %87`. Number shown only after the held-out calibration gate (ECE ≤0.1 + high precision ≥0.9, Task 18) | User decision |
 | Cache | browser.storage.local (7-day TTL) + Worker shared cache (48h); key `ragebait:v1:{modelVersion}:{featureVersion}:{lowerHandle}` (Worker: sha256 of that exact string) | Design (D3) |
-| Distribution | Public GitHub + AMO "unlisted" signing with `update_url` (no public listing). **MV2 is the only shipping build**; MV3 is a post-v1, Chrome-only, best-effort shim (Task 20) | Mozilla policy. Release Firefox requires a signed xpi, which AMO issues for unlisted submissions — the same artifact serves Nightly and stable |
+| Distribution | GitHub/self-distributed unlisted `.xpi` with a verified update manifest and `update_url` (no public listing). A public AMO listing would use AMO-managed updates instead. **MV2 is the only shipping build**; MV3 is a post-v1, Chrome-only, best-effort shim (Task 20) | Mozilla Extension Workshop: public AMO listings receive automatic updates; unlisted self-distribution needs an update path |
 | License | Apache-2.0 | Consistency with Clef ecosystem |
 
 ## 3. Architecture (target)
@@ -803,13 +804,13 @@ Sum = 1.00. `score = Σ(w_present · f_present) / Σ(w_present)` where "present"
 - Test: `tests/compliance/manifest.test.js`, `tests/compliance/consent.test.js`
 
 **Interfaces:**
-- Produces: `browser_specific_settings.gecko.data_collection_permissions` and `browser_specific_settings.gecko.update_url`; a real non-`.local` gecko id; consent state persisted; a first-run consent gate blocking AI mode until accepted (heuristic mode discloses the FxTwitter fetch and is never described as "nothing leaves your device")
+- Produces: `browser_specific_settings.gecko.data_collection_permissions`, a verified HTTPS update manifest, and `browser_specific_settings.gecko.update_url` for the confirmed unlisted/self-distributed channel; a real non-`.local` gecko id; consent state persisted; a first-run consent gate blocking AI mode until accepted (heuristic mode discloses the FxTwitter fetch and is never described as "nothing leaves your device")
 
-- [ ] **Step 1: Resolve the exact AMO schema, then write the failing test** — fetch the current `data_collection_permissions` object shape and the minimum Firefox version that supports it, and **update the Global Constraints `strict_min_version`** if the floor is higher than 121. Then assert: the manifest carries a `data_collection_permissions` object matching that schema exactly; the privacy-policy `url` is present; `update_url` is set; the gecko id does not end in `.local`. Pinning the resolved schema (rather than "whatever AMO says today") is what makes the test discriminating.
+- [ ] **Step 1: Resolve the exact AMO schema, then write the failing test** — fetch the current `data_collection_permissions` object shape and the minimum Firefox version that supports it, and **update the Global Constraints `strict_min_version`** if the floor is higher than 121. Then assert: the manifest carries a `data_collection_permissions` object matching that schema exactly; the privacy-policy `url` is present; the unlisted/self-distributed update manifest and `update_url` are valid; the gecko id does not end in `.local`. Pinning the resolved schema and update path (rather than "whatever AMO says today") is what makes the test discriminating.
 
 - [ ] **Step 2: Run test** → FAIL.
 
-- [ ] **Step 3: Implement the manifest changes** — replace the `ragebait-detector@berkaykrc.local` placeholder with the real id (v1 promised this and no task ever did it, which would have blocked signing), add `update_url` so unlisted installs auto-update, add `data_collection_permissions`.
+- [ ] **Step 3: Implement the manifest changes** — replace the `ragebait-detector@berkaykrc.local` placeholder with the real id (v1 promised this and no task ever did it, which would have blocked signing), add `data_collection_permissions`, and add `update_url` pointing to the verified HTTPS update manifest so unlisted installs auto-update.
 
 - [ ] **Step 4: Write failing consent tests then implement the consent screen** — not accepted → AI mode blocked with a reason; accepted → allowed; heuristic mode always shows the FxTwitter disclosure and never claims nothing leaves the device; AI-mode text additionally covers the Cloudflare upload.
 
@@ -849,7 +850,7 @@ Sum = 1.00. `score = Σ(w_present · f_present) / Σ(w_present)` where "present"
 - Create: `docs/release.md`
 - Modify: `README.md` (install section)
 
-- [ ] **Step 1: Write `docs/release.md`** — `npm run build` → `npm run package` → `web-ext sign --api-key=$AMO_KEY --api-secret=$AMO_SECRET` (keys from the user's AMO account, never committed) → signed xpi → GitHub Releases; unlisted channel with `update_url`; dev-install note (Nightly/Unbranded only). Also the Worker deployment step from Task 11 Step 7.
+- [ ] **Step 1: Write `docs/release.md`** — document the confirmed unlisted/self-distribution path, including the verified HTTPS update manifest and `update_url`; then run `npm run build` → `npm run package` → `web-ext sign --api-key=$AMO_KEY --api-secret=$AMO_SECRET` (keys from the user's AMO account, never committed) → signed `.xpi` → GitHub Releases; include the dev-install note (Nightly/Unbranded only) and the Worker deployment step from Task 11 Step 7.
 
 - [ ] **Step 2: Update `README.md`** — user-facing install from GitHub Releases + privacy summary (FxTwitter in all modes, Cloudflare in AI mode) + roadmap.
 
