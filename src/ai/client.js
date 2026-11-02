@@ -2,6 +2,16 @@
 //
 // Handles proxy and BYOK requests, 10s timeout, install token lifecycle,
 // and response mapping.
+//
+// SECURITY MODEL: the install token is a self-generated quota identifier the
+// client invents in browser storage. It is NOT a secret, NOT a credential,
+// and NOT authentication — it is sent in cleartext as `X-Install-Token` and
+// works only as quota accounting / abuse resistance on the Worker side. The
+// client intentionally holds no shared secret and never computes or sends
+// `X-Install-Signature`; that header is reserved for a future
+// server-issued credential flow. Because anyone can rotate tokens to obtain
+// a fresh quota bucket, the hosted Worker caps abuse with per-identity,
+// edge/IP and global limits (see worker/src/quota.js and the security plan).
 
 import { mapNoulToScore } from "./map-response.js";
 
@@ -108,6 +118,8 @@ export async function analyzeWithAi(
       return { fallback: "heuristic" };
     }
     endpoint = options.proxyUrl;
+    // Self-generated quota identifier: quota accounting / abuse resistance
+    // only, never authentication (no signature is computed or sent).
     if (options?.installToken) {
       headers["X-Install-Token"] = options.installToken;
     }
@@ -117,6 +129,8 @@ export async function analyzeWithAi(
 
   try {
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    // installToken in the body is the documented legacy fallback for the
+    // Worker's quota identity resolution; it carries no secret material.
     const body = {
       state,
       installToken: options?.installToken,

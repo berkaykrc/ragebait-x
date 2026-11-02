@@ -7,16 +7,23 @@
 A Firefox extension (MV2) that shows a ragebait / engagement-bait band inside X
 (Twitter) hovercards, based on the target account's replies.
 
-The extension supports local heuristic scoring, a consent-gated Worker proxy,
-and BYOK AI mode. Proxy mode sends the extracted feature state and a bounded
-reply sample to the configured Worker, which calls the Clef model and returns a
-band and score.
+The extension supports local heuristic scoring, a consent-gated hosted Worker
+proxy, BYOK AI mode, and self-hosted Worker deployments. The hosted proxy URL is
+public and discoverable by design; it is not an authenticated extension-only
+endpoint. Proxy mode sends the extracted feature state and a bounded reply
+sample to the configured Worker, which calls Clef and returns a band and score.
+
+The open-source Worker source describes its processing behavior. API keys and
+deployment secrets remain in Cloudflare Worker secrets and are never bundled in
+the extension. X account IDs and install tokens are quota/accounting identifiers
+only: they are forgeable, are not authentication, and do not prove that a
+request came from an official or unmodified client.
 
 ## Status
 
 - Latest release: [Releases](../../releases/latest). The version of record is
   `version` in `manifest.mv2.json`, which the release workflow bumps.
-- Modes: heuristic, proxy, and BYOK (`MODEL_VERSION = "h1"`,
+- Modes: heuristic, proxy, BYOK, and self-hosted (`MODEL_VERSION = "h1"`,
   `FEATURE_VERSION = "f1"`)
 - Browser: Firefox (MV2). Chrome/MV3 is post-v1 and unverified.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
@@ -83,19 +90,34 @@ this alpha).
 - Heuristic mode keeps AI processing local. Proxy and BYOK modes require the
   data-handling notice to be accepted before sending feature state and sampled
   reply text to the selected endpoint.
-- Proxy mode sends data to the configured Worker, which may forward the sample
-  to Clef and Jev. BYOK mode sends it to the user's configured endpoint with the
-  user's API key. No API keys are bundled in the extension.
+- Proxy mode sends `{ state, installToken }` to `/analyze`. `state` contains the
+  handle, computed feature object, and at most 12 reply snippets truncated to
+  400 characters each. The Worker sends the normalized state plus four binary
+  questions and one three-level intensity question to Clef 27B, with Jev as a
+  fallback. BYOK mode sends the same state to the user's configured endpoint
+  with the user's API key. No API keys are bundled in the extension.
 - Results are stored in `browser.storage.local` on the user's machine; there is
   no extension user account. Proxy responses may be shared through the Worker's
-  48-hour cache.
+  48-hour KV cache. A model miss consumes one daily quota unit per install
+  token; cached responses do not. These identifiers can be forged and quota
+  protection is abuse resistance, not identity verification.
 - Results are shown only to the hovering user. There are no public lists.
+
+Self-hosting lets an operator deploy the open Worker source with their own
+Cloudflare account, KV namespace, model credentials, limits, and endpoint. The
+hosted service is optional; the operator can be contacted through the project's
+[GitHub issue tracker](https://github.com/berkaykrc/ragebait-x/issues). The
+Worker does not provide account-level export or deletion for its shared cache;
+cached results expire after 48 hours, and a request cannot reliably identify all
+records associated with a forgeable public identifier.
 
 ## Scripts
 
 - `npm run check` - all gates in order: `lint:js` -> `fmt:check` -> `build` ->
   `lint` -> `test`.
 - `npm run build` - esbuild both build roots.
+- `npm run check:artifacts` - fail if built artifacts contain credential-shaped
+  values.
 - `npm run lint` - web-ext lint on `dist-mv2/`.
 - `npm run lint:js` - Deno lint.
 - `npm run fmt` / `npm run fmt:check` - Deno format.
