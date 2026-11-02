@@ -66,18 +66,18 @@ test("questions: trims reply sample to max 12 items and 400 chars each", () => {
   }
 });
 
-test("analyze: rejects missing state with 400 and named reason", async () => {
+test("analyze: rejects missing state with the bounded 400 invalid_request", async () => {
   const res = await analyze({}, {});
   assert.equal(res.status, 400);
   const data = await res.json();
-  assert.match(data.error, /missing or invalid state/i);
+  assert.deepEqual(data, { error: "invalid_request" });
 });
 
-test("analyze: rejects state without features with 400 and named reason", async () => {
+test("analyze: rejects state without features with the bounded 400 invalid_request", async () => {
   const res = await analyze({ state: { handle: "foo" } }, {});
   assert.equal(res.status, 400);
   const data = await res.json();
-  assert.match(data.error, /features/i);
+  assert.deepEqual(data, { error: "invalid_request" });
 });
 
 test("analyze: Clef success -> 200 + answers + model: 'clef'", async () => {

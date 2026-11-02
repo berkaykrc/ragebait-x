@@ -1,7 +1,7 @@
 // Worker entry point and fetch router.
 //
-// Routes GET /config, POST /analyze (cache → quota → ceiling → model), and
-// OPTIONS for CORS.
+// Routes GET /config, POST /analyze (input gate → cache → quota → ceiling →
+// model), and OPTIONS for CORS.
 //
 // SECURITY MODEL (public, binding policy — see quota.js for the full text):
 // - The hosted Worker is a PUBLIC SERVICE. CORS, quota identities and derived
@@ -37,13 +37,14 @@
 //   Retry-After). Cached responses are still served; a model call is never
 //   served without a consumed quota unit.
 //
-// Public /analyze error contract: `install_token_required` (400),
-// `model_calls_paused` (503, Retry-After: 60), `quota_unavailable` (503,
-// Retry-After: 60), plus `{ state: "quota" }` (429) for an exhausted
-// identifier.
+// Public /analyze error contract: `invalid_request` (400, Task-4 input gate
+// — opaque code for every body shape/allowlist/bound violation),
+// `install_token_required` (400), `model_calls_paused` (503, Retry-After:
+// 60), `quota_unavailable` (503, Retry-After: 60), plus `{ state: "quota" }`
+// (429) for an exhausted identifier.
 
 import { buildConfig, FEATURE_VERSION, MODEL_VERSION } from "./config.js";
-import { analyze } from "./analyze.js";
+import { analyze, MAX_BODY_BYTES, validateAnalyzeBody } from "./analyze.js";
 import {
   buildCacheKey,
   getCachedAnalysis,
@@ -129,6 +130,25 @@ function bounded503(code) {
       ...CORS_HEADERS,
       "Content-Type": "application/json",
       "Retry-After": "60",
+    },
+  });
+}
+
+/**
+ * The bounded Task-4 rejection: every input-gate failure (byte size, JSON
+ * shape, nesting depth, key allowlists, handle format, field bounds) returns
+ * this same opaque 400 so the public endpoint never leaks a distinguishable
+ * reason oracle. Bounded code only; the request body is never echoed or
+ * logged.
+ *
+ * @returns {Response}
+ */
+function invalidRequest() {
+  return new Response(JSON.stringify({ error: "invalid_request" }), {
+    status: 400,
+    headers: {
+      ...CORS_HEADERS,
+      "Content-Type": "application/json",
     },
   });
 }
@@ -220,36 +240,34 @@ export default {
         );
       }
 
-      // 1. Parse the documented body ({ state, installToken }). Validation
-      // precedes any cache, quota or model work.
+      // 1. Parse the documented body ({ state, installToken }). The Task-4
+      // input gate precedes any cache, quota or model work: byte bound
+      // checked BEFORE JSON parsing (read as text, count, then parse), then
+      // strict allowlists (body/state/feature keys), depth <= 4 and per-field
+      // bounds in analyze.js's gate. Every violation is the same bounded
+      // `invalid_request` 400.
+      let raw;
       let body;
       try {
-        body = await request.json();
-      } catch (_err) {
-        return new Response(
-          JSON.stringify({ error: "Malformed JSON body" }),
-          {
-            status: 400,
-            headers: {
-              ...CORS_HEADERS,
-              "Content-Type": "application/json",
-            },
-          },
-        );
+        raw = await request.text();
+      } catch (_readErr) {
+        return invalidRequest();
+      }
+      if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
+        return invalidRequest();
+      }
+      try {
+        body = JSON.parse(raw);
+      } catch (_parseErr) {
+        return invalidRequest();
       }
 
-      const handle = body?.state?.handle;
-      if (typeof handle !== "string" || handle.length === 0) {
-        return new Response(
-          JSON.stringify({ error: "Missing or invalid state.handle" }),
-          {
-            status: 400,
-            headers: {
-              ...CORS_HEADERS,
-              "Content-Type": "application/json",
-            },
-          },
-        );
+      // Canonical, normalized state from the single validation point — the
+      // same object the cache key below and the model payload (via analyze())
+      // are built from.
+      const validated = validateAnalyzeBody(body);
+      if (!validated.ok) {
+        return invalidRequest();
       }
 
       const kv = /** @type {any} */ (env?.CACHE_KV);
@@ -286,7 +304,11 @@ export default {
         ? env.FEATURE_VERSION
         : FEATURE_VERSION;
 
-      const cacheKey = await buildCacheKey(handle, mv, fv);
+      // Cache key covers the CANONICAL MODEL STATE (normalized handle,
+      // features, truncated reply sample) plus versions — never the handle
+      // alone: one caller priming a shared entry for a handle can only have
+      // it served to requests carrying the same canonical state (Task 4).
+      const cacheKey = await buildCacheKey(validated.state, mv, fv);
 
       // 3. Cache check (D7: cache before quota). Cached responses keep
       // working even while the operator pause is engaged (step 4 below).
@@ -385,7 +407,9 @@ export default {
 
       // 7. Model call (outside the quota try/catch: analyze() returns
       // bounded error Responses for its own failures and must not be
-      // misreported as a quota problem).
+      // misreported as a quota problem). analyze() re-runs the same input
+      // gate and builds its payload from the canonical state, so the model
+      // input always matches the cache key built above.
       const modelRes = await analyze(body, env, fetchImpl);
       if (modelRes.status === 200) {
         const data = await modelRes.json();

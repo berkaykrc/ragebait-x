@@ -1,6 +1,11 @@
 // Worker shared KV cache for analysis results (48h TTL).
 //
-// Key is sha256("ragebait:v1:{modelVersion}:{featureVersion}:{lowerHandle}").
+// Key is sha256("ragebait:v2:{modelVersion}:{featureVersion}:{canonicalState}")
+// where canonicalState is the deterministic serialization of the CANONICAL
+// MODEL STATE (normalized handle, features, truncated reply sample) — never
+// the handle alone (Task 4: one caller must not be able to prime a shared
+// cache entry for a handle with state another caller did not submit). The v2
+// prefix also orphans any legacy handle-only entries from old deployments.
 
 /**
  * Computes the SHA-256 hex digest of a string using Web Crypto.
@@ -16,16 +21,43 @@ export async function sha256Hex(input) {
 }
 
 /**
- * Builds the canonical unified cache key for a given handle and versions.
+ * Deterministic serialization of key material: object keys sorted, array
+ * order preserved (reply sample order is part of the model input). Two
+ * canonical states with the same content therefore hash identically even
+ * when their property insertion order differs.
  *
- * @param {string} handle
+ * @param {unknown} value
+ * @returns {string}
+ */
+function stableStringify(value) {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  return `{${
+    keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")
+  }}`;
+}
+
+/**
+ * Builds the canonical unified cache key for a CANONICAL MODEL STATE and
+ * versions. `modelState` is the validated canonical state as produced by
+ * `canonicalModelState` (analyze.js): { handle (lower-cased), features
+ * (canonical order), replySample (truncated) }.
+ *
+ * @param {{ handle: string, features: Record<string, unknown>, replySample: string[] }} modelState
  * @param {string} modelVersion
  * @param {string} featureVersion
  * @returns {Promise<string>}
  */
-export async function buildCacheKey(handle, modelVersion, featureVersion) {
-  const rawKey =
-    `ragebait:v1:${modelVersion}:${featureVersion}:${handle.toLowerCase()}`;
+export async function buildCacheKey(modelState, modelVersion, featureVersion) {
+  const rawKey = `ragebait:v2:${modelVersion}:${featureVersion}:${
+    stableStringify(modelState)
+  }`;
   return await sha256Hex(rawKey);
 }
 

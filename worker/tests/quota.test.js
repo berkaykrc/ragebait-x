@@ -558,7 +558,7 @@ test("router: same X-account identity shares one bucket across reinstall and kee
       "X-Install-Token": "tok-after-reinstall",
       "X-Quota-Identity": "123456789012345678",
     },
-    state: { ...VALID_STATE, handle: "reinstall-bob" },
+    state: { ...VALID_STATE, handle: "reinstall_bob" },
   });
   const res2 = await worker.fetch(
     reinstallReq,
@@ -594,7 +594,7 @@ test("router: switching the logged-in X account switches the quota namespace", a
   const res1 = await worker.fetch(
     analyzeRequest({
       headers: { "X-Quota-Identity": "111111111" },
-      state: { ...VALID_STATE, handle: "switch-first" },
+      state: { ...VALID_STATE, handle: "switch_first" },
     }),
     { CACHE_KV: kv, ...QUOTA_ENV, INSTALL_TOKEN_SECRET: SECRET },
     null,
@@ -603,7 +603,7 @@ test("router: switching the logged-in X account switches the quota namespace", a
   const res2 = await worker.fetch(
     analyzeRequest({
       headers: { "X-Quota-Identity": "222222222" },
-      state: { ...VALID_STATE, handle: "switch-second" },
+      state: { ...VALID_STATE, handle: "switch_second" },
     }),
     { CACHE_KV: kv, ...QUOTA_ENV, INSTALL_TOKEN_SECRET: SECRET },
     null,
@@ -639,7 +639,7 @@ test("router: forged X-account identity is accepted and SHARES the claimed bucke
         "X-Install-Token": "tok-forged-sender",
         "X-Quota-Identity": "777777777",
       },
-      state: { ...VALID_STATE, handle: "forged-bob" },
+      state: { ...VALID_STATE, handle: "forged_bob" },
     }),
     env,
     null,
@@ -665,7 +665,7 @@ test("router: install-token-only rotation stays supported under the secret (deri
   const resB = await worker.fetch(
     analyzeRequest({
       headers: { "X-Install-Token": "tok-rot-v2-B" },
-      state: { ...VALID_STATE, handle: "rot-bob" },
+      state: { ...VALID_STATE, handle: "rot_bob" },
     }),
     env,
     null,
@@ -750,8 +750,9 @@ test("router: kill switch stops model misses, preserves cached responses, consum
     model: "clef",
   };
   const { buildCacheKey } = await import("../src/cache.js");
+  const { canonicalModelState } = await import("../src/analyze.js");
   await kv.put(
-    await buildCacheKey("alice", "h1", "f1"),
+    await buildCacheKey(canonicalModelState(VALID_STATE), "h1", "f1"),
     JSON.stringify(cachedData),
   );
 
@@ -808,7 +809,7 @@ test("router: global daily model-call ceiling counts misses across identities; o
   const r1 = await worker.fetch(
     analyzeRequest({
       headers: { "X-Install-Token": "tok-ceiling-1" },
-      state: { ...VALID_STATE, handle: "ceiling-a" },
+      state: { ...VALID_STATE, handle: "ceiling_a" },
     }),
     env,
     null,
@@ -817,7 +818,7 @@ test("router: global daily model-call ceiling counts misses across identities; o
   const r2 = await worker.fetch(
     analyzeRequest({
       headers: { "X-Install-Token": "tok-ceiling-2" },
-      state: { ...VALID_STATE, handle: "ceiling-b" },
+      state: { ...VALID_STATE, handle: "ceiling_b" },
     }),
     env,
     null,
@@ -837,7 +838,7 @@ test("router: global daily model-call ceiling counts misses across identities; o
   const r3 = await worker.fetch(
     analyzeRequest({
       headers: { "X-Install-Token": "tok-ceiling-3" },
-      state: { ...VALID_STATE, handle: "ceiling-c" },
+      state: { ...VALID_STATE, handle: "ceiling_c" },
     }),
     env,
     null,
@@ -865,7 +866,7 @@ test("router: serialized QUOTA_COUNTER wiring enforces the quota contract throug
     const res = await worker.fetch(
       analyzeRequest({
         headers: { "X-Install-Token": `tok-do-${i}` },
-        state: { ...VALID_STATE, handle: `do-target-${i}` },
+        state: { ...VALID_STATE, handle: `do_target_${i}` },
       }),
       env,
       null,
@@ -940,7 +941,7 @@ test("router: per-IP limits are NOT implemented in the Worker — quota follows 
         "X-Install-Token": "tok-ip",
         "CF-Connecting-IP": "203.0.113.99",
       },
-      state: { ...VALID_STATE, handle: "ip-second" },
+      state: { ...VALID_STATE, handle: "ip_second" },
     }),
     env,
     null,
@@ -963,7 +964,7 @@ test("router: per-IP limits are NOT implemented in the Worker — quota follows 
         "X-Install-Token": "tok-ip-other",
         "CF-Connecting-IP": "203.0.113.7",
       },
-      state: { ...VALID_STATE, handle: "ip-other-handle" },
+      state: { ...VALID_STATE, handle: "ip_other_handle" },
     }),
     env,
     null,
