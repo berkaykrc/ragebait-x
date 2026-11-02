@@ -19,8 +19,8 @@
     "release": "node scripts/release.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0",
-    "web-ext": "^8.0.0",
+    "esbuild": "^0.28.2",
+    "web-ext": "^10.8.0",
     "jsdom": "^25.0.0"
   }
 }
