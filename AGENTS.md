@@ -31,8 +31,8 @@ directory argument is loaded as a module and fails
 reason.
 
 The same trap applies to direct invocations: `node --test tests/` or
-`node --test worker/tests/` fails the same way (a single wrapper failure
-instead of running the suites). Use the glob form:
+`node --test worker/tests/` fails the same way (a single wrapper failure instead
+of running the suites). Use the glob form:
 
 ```
 node --test 'tests/**/*.test.js'
