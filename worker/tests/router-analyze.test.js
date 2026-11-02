@@ -374,20 +374,20 @@ test("router: quota store failure fails closed with bounded 503 quota_unavailabl
 // never the handle alone.
 
 /** Runs one gate case and asserts the bounded rejection + no side effects. */
-async function expectInvalidRequest(kv, req, counter) {
+async function expectInvalidRequest(kv, req, counter, message) {
   const res = await worker.fetch(
     req,
     { CACHE_KV: kv },
     null,
     mockModelFetch(counter),
   );
-  assert.equal(res.status, 400);
-  assert.deepEqual(await res.json(), { error: "invalid_request" });
-  assert.equal(counter.calls, 0);
+  assert.equal(res.status, 400, message);
+  assert.deepEqual(await res.json(), { error: "invalid_request" }, message);
+  assert.equal(counter.calls, 0, message);
   const quotaKeys = Array.from(kv._store.keys()).filter((k) =>
     k.startsWith("quota:")
   );
-  assert.equal(quotaKeys.length, 0);
+  assert.equal(quotaKeys.length, 0, message);
 }
 
 function gateRequest(payload) {
@@ -522,9 +522,8 @@ test("task4: wrong feature value type or range -> bounded 400 each", async () =>
         state: { handle: "alice", features, replySample: [] },
       }),
       counter,
+      name,
     );
-    // Each case is a distinct failure; the name keeps the failure readable.
-    assert.ok(name.length > 0);
   }
 });
 

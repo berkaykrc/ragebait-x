@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { buildQuestionSet } from "../src/questions.js";
-import { analyze } from "../src/analyze.js";
+import { analyze, FEATURE_KEYS } from "../src/analyze.js";
+import { computeFeatures } from "../../src/analysis/features.js";
 
 const VALID_STATE = {
   handle: "testuser",
@@ -64,6 +65,14 @@ test("questions: trims reply sample to max 12 items and 400 chars each", () => {
   for (const item of payload.state.replySample) {
     assert.ok(item.length <= 400);
   }
+});
+
+test("analyze: FEATURE_KEYS stays in sync with the computed feature vector (src/analysis/features.js)", () => {
+  // One minimal reply: the key ORDER of the computed vector is the source of
+  // truth for the Worker-side allowlist; a new feature key in features.js
+  // must land here too or the gate silently 400s requests carrying it.
+  const vector = computeFeatures([{ text: "hello", lang: "en" }]);
+  assert.deepEqual(FEATURE_KEYS, Object.keys(vector));
 });
 
 test("analyze: rejects missing state with the bounded 400 invalid_request", async () => {

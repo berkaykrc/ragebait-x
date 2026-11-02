@@ -83,17 +83,20 @@ function keysAllowed(value, allowed) {
 }
 
 /**
- * Maximum nesting depth of a JSON-shaped value. Scalars contribute their own
- * depth level; objects/arrays add one level per nesting. `body` itself is
- * depth 1, `body.state` 2, `state.features` 3, feature values 4.
+ * Walks the JSON-shaped value bounded: each object/array level costs one
+ * depth step and every scalar contributes its own level (`body` itself is
+ * depth 1, `body.state` 2, `state.features` 3, feature values 4). Returns
+ * true as soon as any level exceeds `limit`, so the walk never recurses
+ * deeper than one step past the cap. Comparison happens inside the walk —
+ * no full unbounded pass first.
  */
-function maxDepth(value, depth) {
-  if (value === null || typeof value !== "object") return depth;
-  let max = depth;
+function exceedsMaxDepth(value, depth) {
+  if (depth > MAX_BODY_DEPTH) return true;
+  if (value === null || typeof value !== "object") return false;
   for (const child of Object.values(value)) {
-    max = Math.max(max, maxDepth(child, depth + 1));
+    if (exceedsMaxDepth(child, depth + 1)) return true;
   }
-  return max;
+  return false;
 }
 
 /**
@@ -170,7 +173,7 @@ export function validateAnalyzeBody(body) {
   if (!isPlainObject(body) || !keysAllowed(body, BODY_KEYS)) {
     return { ok: false };
   }
-  if (maxDepth(body, 1) > MAX_BODY_DEPTH) {
+  if (exceedsMaxDepth(body, 1)) {
     return { ok: false };
   }
 
@@ -219,7 +222,12 @@ export function validateAnalyzeBody(body) {
   return { ok: true, state: canonicalModelState(state) };
 }
 
-/** The bounded, opaque rejection shared by every input-gate failure. */
+/**
+ * The bounded, opaque rejection shared by every input-gate failure. NOTE: no
+ * CORS headers on purpose — index.js re-wraps model-side 4xx/5xx Responses
+ * with CORS_HEADERS (see the /analyze error re-wrap there), so CORS is added
+ * there; a future direct serve of this response must not drop those headers.
+ */
 export function invalidRequestResponse() {
   return new Response(JSON.stringify({ error: "invalid_request" }), {
     status: 400,
