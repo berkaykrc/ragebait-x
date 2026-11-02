@@ -40,6 +40,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Fail the build before anything else runs if credential-shaped values
+      # reached dist-mv2/ or dist-mv3/.
+      - name: Artifact secret scan
+        run: npm run check:artifacts
+
       - name: Lint
         run: npm run lint
 

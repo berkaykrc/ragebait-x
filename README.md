@@ -48,6 +48,38 @@ Results are cached locally per state with a per-state TTL, so re-hovering an
 account does not re-fetch. Local results use a 7-day TTL; proxy analyses also
 use the Worker's shared 48-hour cache.
 
+## Hosted Worker API
+
+The hosted Worker is a public service, not an authenticated extension-only
+endpoint. CORS is open and its quota identities (install tokens, X viewer IDs)
+are forgeable client identifiers: abuse resistance, not authentication. Any HTTP
+client gets exactly the same contract.
+
+- `GET /config` — public feature flags only (`modelVersion`, `featureVersion`,
+  `bandThresholds`, `selectors`, `showNumber`, `proxyUrl`, `proxyEnabled`). No
+  secrets or debug routes; wrong method is answered 405.
+- `POST /analyze` — documented body `{ state, installToken }` with the optional
+  `X-Install-Token` / `X-Quota-Identity` headers. The input gate accepts at most
+  16 KiB of JSON, at most 12 reply snippets of at most 400 characters each, and
+  strictly allowlisted body/state/feature keys. Every model miss consumes one
+  daily quota unit for the caller's identity before the model is involved;
+  cached results (the shared 48-hour cache) are returned with 200 and never
+  consume quota or call the model.
+
+`/analyze` errors are bounded, so callers get a stable contract:
+
+| Body                                 | Status | Retry-After | Meaning                                                                                                                                               |
+| ------------------------------------ | ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{"error":"invalid_request"}`        | 400    | —           | Any input-gate violation (size, shape, allowlist key, depth or field bound). Opaque by design; the request body is never echoed or logged.            |
+| `{"error":"install_token_required"}` | 400    | —           | No bounded quota identity in header or body.                                                                                                          |
+| `{"state":"quota"}`                  | 429    | —           | That identity's daily model-call quota is exhausted (`x-quota-remaining: 0`). Cached responses keep returning 200.                                    |
+| `{"error":"model_calls_paused"}`     | 503    | 60          | The operator kill switch (`QUOTA_KILL_SWITCH`) is engaged or the global daily model-call ceiling (`GLOBAL_DAILY_MODEL_CEILING`) is used up.           |
+| `{"error":"quota_unavailable"}`      | 503    | 60          | Quota protection itself failed (KV store, counter backend or secret-dependent identity could not be derived) — fail closed, never silently unlimited. |
+| `{"error":"ai_unavailable"}`         | 502    | —           | The model upstream failed (Clef, then the Jev fallback); the quota unit for that miss is spent.                                                       |
+
+Routes outside `/config` and `/analyze` answer 404. Per-IP and global request
+rate limits are Cloudflare edge/WAF configuration, not Worker code.
+
 ## Brand
 
 The mark at the top of this README is a miniature signal meter: three stacked
@@ -62,7 +94,7 @@ The tile uses the `--rb-ink` token for its background. Regenerate icons with
 
 ## Development install
 
-Node is pinned by `.nvmrc` (`22.13.0`); tooling is Deno.
+Node is pinned by `.nvmrc` (`26.13.0`); tooling is Deno.
 
 ```sh
 npm install
@@ -114,7 +146,7 @@ records associated with a forgeable public identifier.
 ## Scripts
 
 - `npm run check` - all gates in order: `lint:js` -> `fmt:check` -> `build` ->
-  `lint` -> `test`.
+  `check:artifacts` -> `lint` -> `test`.
 - `npm run build` - esbuild both build roots.
 - `npm run check:artifacts` - fail if built artifacts contain credential-shaped
   values.

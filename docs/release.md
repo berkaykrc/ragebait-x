@@ -46,11 +46,13 @@ the Cloudflare account; this file cannot enforce it.
 3. Use different token values per environment. A staging leak must never
    compromise production, and staging traffic must never pollute production
    cache or quota state.
-4. When the release gate lands (Task 6), consider the deploy-time complement
-   to these text-level checks: Wrangler v4 supports a non-inheritable
-   `secrets` config key with a `required` list, so a deploy fails when a
-   per-environment secret is missing instead of the Worker silently running
-   without it.
+4. The repository-side gate has landed: `npm run check:artifacts` runs inside
+   `npm run check` and as its own step immediately after Build in the CI and
+   release workflows, so the workflow that signs the XPI cannot skip the
+   artifact secret scan. The deploy-time complement is still operator work:
+   Wrangler v4 supports a non-inheritable `secrets` config key with a
+   `required` list, so a deploy fails when a per-environment secret is missing
+   instead of the Worker silently running without it.
 
 ### Operator step: minimum-scope Cloudflare access
 
@@ -64,6 +66,178 @@ the Cloudflare account; this file cannot enforce it.
 3. If the account has team members, apply the least-privilege membership
    roles; `CLOUDFLARE_ACCOUNT_ID` is a public account identifier and not
    sensitive, but write access to the account is.
+
+### Operator step: staged behavior gate (not runnable from this repository)
+
+Deploying to staging and probing the live Worker needs Cloudflare credentials,
+so no `npm run check` gate can ever cover it — this is an external gap by
+design. Run it once per Worker release and attach the filled evidence table to
+the release notes before publishing.
+
+Set up (deploy staging per the steps above, then):
+
+```sh
+export STAGE="https://ragebait-proxy-staging.<your-subdomain>.workers.dev"
+export STAGE_TOKEN="stage-gate-$(date +%s)"   # any fresh value; forgeable by design
+# payload.json: {"state":{...},"installToken": "..."} — a body the Task-4 gate accepts
+cat > payload.json <<'JSON'
+{
+  "state": {
+    "handle": "example",
+    "features": { "capsRatio": 0.1, "exclamationRatio": 0.2 },
+    "replySample": ["a probe reply used for release-gate evidence"]
+  },
+  "installToken": "stage-gate-evidence"
+}
+JSON
+```
+
+Type secret values on stdin when `wrangler secret put` prompts — never in a
+shell command line or this file.
+
+1. **Public config only** — every check starts here:
+
+   ```sh
+   curl -sS "$STAGE/config"
+   ```
+
+   Expected: exactly `modelVersion`, `featureVersion`, `bandThresholds`,
+   `selectors`, `showNumber`, `proxyUrl`, `proxyEnabled`. No secrets, no debug
+   routes (repository-side proof: `worker/tests/config.test.js`).
+
+2. **Cache behavior** — an identical body returns the identical 200 without a
+   further quota decrement and without a model call:
+
+   ```sh
+   curl -sS -D miss.headers -o miss.json -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' -H "X-Install-Token: $STAGE_TOKEN" \
+     --data-binary @payload.json
+   curl -sS -D hit.headers -o hit.json -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' -H "X-Install-Token: $STAGE_TOKEN" \
+     --data-binary @payload.json
+   diff miss.json hit.json          # identical (200; no x-quota-remaining on hits)
+   grep -ci retry-after hit.headers # 0 — never a 503 while cached
+   ```
+
+3. **Quota exhaustion (429 shape)** — the per-identity daily limit is code
+   (`DAILY_QUOTA_LIMIT = 200` in `worker/src/index.js`), so each request needs
+   a distinct canonical state to be a real miss that consumes a unit:
+
+   ```sh
+   jq -c --arg r "rate probe 201: quota must be exhausted" \
+     '.state.replySample[0] = $r' payload.json > probe201.json
+   for i in $(seq 1 200); do
+     jq -c --arg r "rate probe $i: distinct reply sample consumes a unit" \
+       '.state.replySample[0] = $r' payload.json > probe.json
+     curl -sS -o /dev/null -X POST "$STAGE/analyze" \
+       -H 'content-type: application/json' -H "X-Install-Token: $STAGE_TOKEN" \
+       --data-binary @probe.json
+   done
+   curl -sS -D probe.headers -o probe.json -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' -H "X-Install-Token: $STAGE_TOKEN" \
+     --data-binary @probe201.json
+   cat probe.headers; cat probe.json
+   ```
+
+   Expected: HTTP 429, body exactly `{"state":"quota"}`,
+   `x-quota-remaining: 0`. The loop performs about 200 real upstream model
+   calls on staging (minutes); leave `GLOBAL_DAILY_MODEL_CEILING` unset until
+   check (5), and keep `$STAGE_TOKEN` — it stays exhausted for the day, which
+   is the point. Every later check uses its own fresh identity, because quota
+   is consumed before the pause/ceiling/model steps act.
+
+4. **Kill switch** — model misses pause, cached responses keep serving:
+
+   ```sh
+   npx wrangler secret put QUOTA_KILL_SWITCH --env staging   # enter: true
+   jq -c '.state.replySample[0] = "kill switch probe"' payload.json > probe.json
+   curl -sS -D - -o probe.out -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' \
+     -H "X-Install-Token: ks-$STAGE_TOKEN" \
+     --data-binary @probe.json
+   curl -sS -D - -o hit.json -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' \
+     -H "X-Install-Token: ks-$STAGE_TOKEN" \
+     --data-binary @payload.json
+   npx wrangler secret put QUOTA_KILL_SWITCH --env staging   # enter: false
+   ```
+
+   Expected: probe returns HTTP 503 `{"error":"model_calls_paused"}` with
+   `Retry-After: 60`; the cached body still returns 200.
+
+5. **Global daily ceiling** — a global counter shared across all identities
+   (`getGlobalQuotaKey()` in `worker/src/quota.js`). Each distinct miss
+   consumes a ceiling unit on top of the identity unit; exhaustion refuses the
+   whole service with the same bounded 503:
+
+   ```sh
+   npx wrangler secret put GLOBAL_DAILY_MODEL_CEILING --env staging   # enter: 3
+   for i in 1 2 3; do
+     jq -c --arg r "ceiling probe $i: must succeed" \
+       '.state.replySample[0] = $r' payload.json > probe.json
+     curl -sS -o /dev/null -X POST "$STAGE/analyze" \
+       -H 'content-type: application/json' \
+       -H "X-Install-Token: ceil-$STAGE_TOKEN-$i" \
+       --data-binary @probe.json
+   done
+   jq -c --arg r "ceiling probe 4: must be paused" \
+     '.state.replySample[0] = $r' payload.json > probe.json
+   curl -sS -D - -o probe.out -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' \
+     -H "X-Install-Token: ceil-$STAGE_TOKEN-4" \
+     --data-binary @probe.json
+   npx wrangler secret delete GLOBAL_DAILY_MODEL_CEILING --env staging
+   ```
+
+   Expected: three fresh-identity misses succeed; the fourth distinct miss
+   returns HTTP 503 `{"error":"model_calls_paused"}`, `Retry-After: 60`. The
+   refusal is identity-independent: any fresh identity gets this 503 while the
+   ceiling stays empty (per-identity quota is checked first, so an exhausted
+   identity would keep its 429 — the ceiling is only checked on the allowed
+   path).
+
+6. **Model failure (ai_unavailable)** — a staging secret set to a knowingly
+   invalid value (staging only), probed with a fresh identity so this miss is
+   uncached and reaches the model:
+
+   ```sh
+   npx wrangler secret put TYPESAFE_API_KEY --env staging   # enter: invalid-for-gate
+   jq -c '.state.replySample[0] = "model failure probe"' payload.json > probe.json
+   curl -sS -D - -o probe.out -X POST "$STAGE/analyze" \
+     -H 'content-type: application/json' \
+     -H "X-Install-Token: mf-$STAGE_TOKEN" \
+     --data-binary @probe.json
+   npx wrangler secret put TYPESAFE_API_KEY --env staging   # restore the real key
+   ```
+
+   Expected: HTTP 502 `{"error":"ai_unavailable"}` with an
+   `x-quota-remaining` header showing the consumed unit — a miss spends its
+   unit even when the model fails, and a failed miss is not cached.
+
+7. **Fail-closed quota store** — with the KV binding temporarily removed from
+   the staging config (`npx wrangler deploy --env staging`), a fresh model
+   miss must answer HTTP 503 `{"error":"quota_unavailable"}`,
+   `Retry-After: 60`; a matching cached entry still returns 200. Restore the
+   binding and redeploy immediately after recording.
+
+8. **Edge WAF / per-IP rate limits** — independent of Worker code by design
+   (they are Cloudflare edge configuration, documented in `worker/src/index.js`
+   comments). Enable a per-IP rate-limiting rule on the staging route, verify
+   it throttles burst HTTP traffic (HTTP 429 from the edge, observed in
+   Security analytics), then mirror the rule in production.
+
+Evidence record (fill per release; keep with the release notes):
+
+| # | Check | Expected (contract) | Command | Date | Result |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `/config` exposes public flags only | the seven fields, nothing else | (1) | | |
+| 2 | Cache hit: no quota decrement, no model call | identical bodies, `diff` empty | (2) | | |
+| 3 | Exhausted identity fails closed | 429 `{"state":"quota"}` | (3) | | |
+| 4 | Kill switch pauses misses, cache serves | 503 `model_calls_paused`, `Retry-After: 60` | (4) | | |
+| 5 | Global ceiling shared and bounded | 503 `model_calls_paused`, `Retry-After: 60` | (5) | | |
+| 6 | Model failure bounded, unit spent | 502 `{"error":"ai_unavailable"}` | (6) | | |
+| 7 | Unusable quota store fails closed | 503 `{"error":"quota_unavailable"}` | (7) | | |
+| 8 | Edge per-IP rate limit enforced | edge 429 in Cloudflare analytics | (8) | | |
 
 ## Operations
 
@@ -142,15 +316,61 @@ Incident response checklist:
 1. `npm run build`
 2. `npm run check:artifacts` (fails on credential-shaped values in build output)
 3. `npm run package` (produces `web-ext-artifacts/*.zip`)
-4. Sign: `web-ext sign --api-key=$AMO_KEY --api-secret=$AMO_SECRET`
+4. Inspect the zip before signing:
+   `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip`. The member
+   list must contain only `manifest.json`, bundled code (`*.js`, `*.css`),
+   `options.*`, and icon/brand assets (`*.png`, `*.svg`) — no dotfiles, no
+   configuration or secret material. Member contents were already scanned by
+   `check:artifacts` (it expands zip members). Record the listing with the
+   release evidence.
+5. Sign: `web-ext sign --api-key=$AMO_KEY --api-secret=$AMO_SECRET`
    (keys from your AMO account; never commit them)
-5. Upload the signed `.xpi` to GitHub Releases / AMO.
-6. Tag: `git tag v1.0.0 && git push --tags`
+6. Upload the signed `.xpi` to GitHub Releases / AMO.
+7. Tag: `git tag v1.0.0 && git push --tags`
 
 ## Verification
 
-- `npm run check` (both suites, lint on dist-mv2)
-- `npm run check:artifacts` after every build; it scans `dist-mv2/`, `dist-mv3/`,
-  and any existing `web-ext-artifacts/`.
-- `npm run package` from a clean `web-ext-artifacts/`
-- Load `dist-mv2/manifest.json` in Firefox via about:debugging
+Repository-local (every push/PR runs it in CI; locally it is `npm run check`):
+
+- `npm run check` — `lint:js` -> `fmt:check` -> `build` -> `check:artifacts` ->
+  `lint` -> `test`.
+- `check:artifacts` is additionally a standalone step immediately after
+  Build in `.github/workflows/ci.yml` and `.github/workflows/release.yml`, so
+  the workflow that signs the XPI cannot skip the artifact secret scan.
+
+Clean XPI inspection (per release; never sign or upload at this step):
+
+1. `npm run build`
+2. `npm run package` from a clean `web-ext-artifacts/`
+3. `npm run check:artifacts` (scans `dist-mv2/`, `dist-mv3/`, and every
+   zip/xpi member in `web-ext-artifacts/`)
+4. `unzip -l web-ext-artifacts/*.zip` — members are only manifests, code,
+   icons and UI assets (Extension steps above).
+5. A grep over the extracted members confirms only public endpoint and config
+   identifiers besides code (the hosted proxy URL is public by design).
+
+Docs against deployed behavior: the disclosure documents are checked against
+the Worker source itself (the repository is the pre-deploy source of truth):
+`worker/src/index.js` (routing, error contract, fail-closed ordering, no
+debug routes), `worker/src/quota.js` (identity handling, bounded error
+statuses, kill switch / ceiling parsing), `worker/src/analyze.js` (input gate,
+Clef/Jev models, bounded logging, `ai_unavailable`), `worker/src/config.js`
+(public `/config` flags), `worker/src/cache.js` (48-hour TTL), and
+`worker/src/questions.js` (four binary questions + one three-level intensity
+question). After deploy, re-check the same facts with the staged gate
+commands above.
+
+Staged live behavior — `npm run check` does NOT cover it: the staged behavior
+gate (operator step above) is the only proof of staging/production quota
+exhaustion, cache behavior, edge rate limits, kill switch, and model failure.
+This is an explicit external gap in the automated gate: no Cloudflare
+credential exists in this repository, so a green `npm run check` is not
+evidence that staging was exercised.
+
+Do not release until:
+
+- the staged behavior gate evidence table is filled for the target
+  environment,
+- the disclosure documents match the observed staged behavior (they match the
+  repository source today), and
+- the clean XPI inspection shows no secret material.

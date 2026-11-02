@@ -1,6 +1,6 @@
 # Privacy Policy — Ragebait Detector
 
-Last updated: 2026-11-01
+Last updated: 2026-11-02
 
 ## What the extension does
 
@@ -39,6 +39,11 @@ proof of an official client. No account-level history is kept.
 The hosted Worker does not offer reliable account-level export or deletion: a
 public identifier is not proof of identity, and cached entries expire
 automatically after 48 hours.
+
+The hosted Worker's logs carry only bounded operational metadata: HTTP status
+codes, short upstream error-response snippets, and failure descriptions. Log
+lines never contain reply snippets, request bodies, install tokens, API keys,
+raw X account IDs, or model-generated content.
 
 ## Sub-processors
 

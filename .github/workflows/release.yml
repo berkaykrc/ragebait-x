@@ -151,6 +151,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Fail before signing: scans dist-mv2/, dist-mv3/ and any zip members in
+      # web-ext-artifacts/ for credential-shaped values. The workflow that
+      # signs the XPI must not be able to skip the secret scan.
+      - name: Artifact secret scan
+        run: npm run check:artifacts
+
       # Do not sign a build whose tests fail.
       - name: Test
         run: npm test
