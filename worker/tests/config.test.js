@@ -125,3 +125,94 @@ test("router: unknown route returns 404 Not Found", async () => {
 
   assert.equal(res.status, 404);
 });
+
+test("task5: no debug or introspection routes exist on the router", async () => {
+  // The Worker surface is only OPTIONS, GET /config and POST /analyze. These
+  // paths are the ones an operator, load balancer probe or curious caller
+  // might reasonably try; none may exist in any deployment environment.
+  const debugPaths = [
+    "/debug",
+    "/__debug",
+    "/admin",
+    "/metrics",
+    "/env",
+    "/vars",
+  ];
+
+  for (const pathname of debugPaths) {
+    const get = await worker.fetch(
+      new Request(`https://api.ragebait-detector.test${pathname}`, {
+        method: "GET",
+      }),
+      {},
+    );
+    assert.equal(get.status, 404, `GET ${pathname} must be 404`);
+
+    const post = await worker.fetch(
+      new Request(`https://api.ragebait-detector.test${pathname}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      {},
+    );
+    assert.equal(post.status, 404, `POST ${pathname} must be 404`);
+  }
+});
+
+test("task5: GET /config output is public-only even with secrets in env", async () => {
+  // Documented public key set for /config (buildConfig output). Anything
+  // added there must be deliberately public and reviewed.
+  const PUBLIC_CONFIG_KEYS = [
+    "modelVersion",
+    "featureVersion",
+    "bandThresholds",
+    "selectors",
+    "showNumber",
+    "proxyUrl",
+    "proxyEnabled",
+  ].sort();
+
+  // Environment simulating a real deployment's secret surface, injected
+  // through the same `env` the Worker uses for everything else.
+  const SECRETS = [
+    ["CLOUDFLARE_API_TOKEN", "cf-secret-do-not-serve-1234567890"],
+    ["TYPESAFE_API_KEY", "typesafe-secret-do-not-serve-12345678"],
+    ["JEV_API_KEY", "jev-secret-do-not-serve-1234567890"],
+    ["INSTALL_TOKEN_SECRET", "hmac-secret-do-not-serve-123456789"],
+    ["QUOTA_KILL_SWITCH", "pause-flag-42"],
+  ];
+  const env = {
+    PROXY_ENABLED: "true",
+    BAND_HIGH: "0.75",
+    BAND_MEDIUM: "0.45",
+    SHOW_NUMBER: "false",
+    CLOUDFLARE_ACCOUNT_ID: "fe941e04eee6db1835c906a459435c1f",
+    ...Object.fromEntries(SECRETS),
+  };
+
+  const res = await worker.fetch(
+    new Request("https://api.ragebait-detector.test/config", { method: "GET" }),
+    env,
+  );
+  assert.equal(res.status, 200);
+
+  const data = await res.json();
+  assert.deepEqual(
+    Object.keys(data).sort(),
+    PUBLIC_CONFIG_KEYS,
+    "/config must expose exactly the documented public keys",
+  );
+
+  // Serialized body must leak neither the secret names nor their values.
+  const body = JSON.stringify(data);
+  for (const [name, value] of SECRETS) {
+    assert.ok(
+      !body.includes(name),
+      `/config body must not contain the name ${name}`,
+    );
+    assert.ok(
+      !body.includes(value),
+      `/config body must not contain the value of ${name}`,
+    );
+  }
+});

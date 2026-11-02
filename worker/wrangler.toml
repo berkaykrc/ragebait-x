@@ -3,6 +3,13 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 
 # KV namespace for shared 48h analysis cache and daily quota tracking
+#
+# The top-level config is the CURRENT PRODUCTION Worker and stays deployable
+# exactly as it is today (`npx wrangler deploy` uses it). Named environments
+# below ([env.staging], [env.production]) exist so separate credentials can be
+# set per environment — never share a KV namespace or secret across
+# environments, because staging traffic would pollute production quota/cache
+# state and a staging leak would compromise production.
 [[kv_namespaces]]
 binding = "CACHE_KV"
 id = "2b54daef757f4e28a6338d874a174f84"
@@ -16,8 +23,53 @@ CLOUDFLARE_ACCOUNT_ID = "fe941e04eee6db1835c906a459435c1f"
 # This Worker is a public optional proxy. Its URL is discoverable by design;
 # CORS and install tokens are not authentication or proof of an official client.
 # Open-source code documents processing behavior. API keys and deployment
-# secrets must only live in the Worker environment, never in the extension:
+# secrets must only live in the Worker environment, never in this file, the
+# source tree, fixtures or build output:
 # - CLOUDFLARE_API_TOKEN (Clef via Workers AI)
 # - TYPESAFE_API_KEY / JEV_API_KEY
 # - INSTALL_TOKEN_SECRET (quota/abuse control only, not client authentication)
-# CLOUDFLARE_ACCOUNT_ID is a public account identifier, not a secret.
+# Secrets are set PER ENVIRONMENT with `npx wrangler secret put <NAME> --env
+# staging` (or `--env production`); a secret set on the top-level config is
+# NOT visible to named environments and vice versa. CLOUDFLARE_ACCOUNT_ID is
+# a public account identifier, not a secret.
+
+# Production restates the existing production namespace so `--env production`
+# deploys to the same data the top-level config serves. Its credentials are
+# the production Cloudflare API token and model API keys — rotate them via
+# `npx wrangler secret put <NAME> --env production` (docs/release.md).
+[env.production]
+name = "ragebait-proxy"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE_KV"
+id = "2b54daef757f4e28a6338d874a174f84"
+
+[env.production.vars]
+PROXY_ENABLED = "true"
+BAND_HIGH = "0.75"
+BAND_MEDIUM = "0.45"
+SHOW_NUMBER = "false"
+CLOUDFLARE_ACCOUNT_ID = "fe941e04eee6db1835c906a459435c1f"
+
+# Staging has its own namespace so it can never read or write production cache
+# or quota state. The ID below is a PLACEHOLDER: an operator replaces it with
+# the real ID from a staging-scoped namespace before a staging deploy is
+# possible. Never put the production ID here and never put secret material in
+# this file.
+[env.staging]
+name = "ragebait-proxy-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "CACHE_KV"
+# PLACEHOLDER — replace with the real staging namespace ID:
+#   npx wrangler kv namespace create CACHE_KV --env staging
+id = "REPLACE_WITH_STAGING_KV_NAMESPACE_ID"
+
+[env.staging.vars]
+# Staging proxy disabled by default: a staging worker should not serve live
+# extension traffic until an operator deliberately flips it on.
+PROXY_ENABLED = "false"
+BAND_HIGH = "0.75"
+BAND_MEDIUM = "0.45"
+SHOW_NUMBER = "false"
+CLOUDFLARE_ACCOUNT_ID = "fe941e04eee6db1835c906a459435c1f"
