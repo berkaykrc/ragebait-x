@@ -196,23 +196,40 @@ shell command line or this file.
    identity would keep its 429 — the ceiling is only checked on the allowed
    path).
 
-6. **Model failure (ai_unavailable)** — a staging secret set to a knowingly
-   invalid value (staging only), probed with a fresh identity so this miss is
-   uncached and reaches the model:
+6. **Model failure (ai_unavailable)** — valid only **while Clef cannot
+   succeed on staging**: on the documented minimum-scope deploy token (Workers
+   Scripts + KV, no AI run permission) Clef always fails, so both models
+   returning null proves the bounded 502. If staging's Worker credential
+   *does* carry the `@cf` AI-run permission, a 200 here means exactly that —
+   Clef is live — and the bypass check below misses its target. To make the
+   boundary invisible neither model may work, so corrupt **both** upstream
+   credentials (the Worker secret `CLOUDFLARE_API_TOKEN` read at request time
+   is not the wrangler shell credential: `wrangler secret put` still
+   authenticates with its own token, so this is safe to corrupt and restore).
+   Corrupt the names the deployment actually configured — Clef reads the
+   Worker secrets `CLOUDFLARE_API_TOKEN` then `CLEF_API_KEY`
+   (`worker/src/analyze.js:247-250`); Jev reads `TYPESAFE_API_KEY` then
+   `JEV_API_KEY` (`worker/src/analyze.js:345-347`):
 
    ```sh
-   npx wrangler secret put TYPESAFE_API_KEY --env staging   # enter: invalid-for-gate
+   npx wrangler secret put CLOUDFLARE_API_TOKEN --env staging   # enter: invalid-for-gate
+   npx wrangler secret put TYPESAFE_API_KEY --env staging       # enter: invalid-for-gate
    jq -c '.state.replySample[0] = "model failure probe"' payload.json > probe.json
    curl -sS -D - -o probe.out -X POST "$STAGE/analyze" \
      -H 'content-type: application/json' \
      -H "X-Install-Token: mf-$STAGE_TOKEN" \
      --data-binary @probe.json
-   npx wrangler secret put TYPESAFE_API_KEY --env staging   # restore the real key
+   npx wrangler secret put CLOUDFLARE_API_TOKEN --env staging   # restore the real token
+   npx wrangler secret put TYPESAFE_API_KEY --env staging       # restore the real key
    ```
 
    Expected: HTTP 502 `{"error":"ai_unavailable"}` with an
    `x-quota-remaining` header showing the consumed unit — a miss spends its
-   unit even when the model fails, and a failed miss is not cached.
+   unit even when the model fails, and a failed miss is not cached. A 200
+   response is not evidence of a broken gate; it records that Clef succeeded
+   with a corrupt Jev sole fallback — rerun only after making Clef fail (and
+   with a further-distinct `replySample[0]`, since the 200 was cached for the
+   identical body).
 
 7. **Fail-closed quota store** — with the KV binding temporarily removed from
    the staging config (`npx wrangler deploy --env staging`), a fresh model
@@ -235,7 +252,7 @@ Evidence record (fill per release; keep with the release notes):
 | 3 | Exhausted identity fails closed | 429 `{"state":"quota"}` | (3) | | |
 | 4 | Kill switch pauses misses, cache serves | 503 `model_calls_paused`, `Retry-After: 60` | (4) | | |
 | 5 | Global ceiling shared and bounded | 503 `model_calls_paused`, `Retry-After: 60` | (5) | | |
-| 6 | Model failure bounded, unit spent | 502 `{"error":"ai_unavailable"}` | (6) | | |
+| 6 | Model failure bounded, unit spent (only while Clef cannot succeed — both upstream credentials corrupted; a 200 means Clef is live) | 502 `{"error":"ai_unavailable"}` | (6) | | |
 | 7 | Unusable quota store fails closed | 503 `{"error":"quota_unavailable"}` | (7) | | |
 | 8 | Edge per-IP rate limit enforced | edge 429 in Cloudflare analytics | (8) | | |
 
