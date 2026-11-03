@@ -119,8 +119,8 @@ in the manifest).
 
 - In **all** modes the extension contacts FxTwitter
   (`https://api.fxtwitter.com`) to fetch the target account's replies. That
-  fetch is an off-device disclosure of the hovered handle. It is disclosed on
-  the options page (`src/options/index.html`).
+  fetch is an off-device disclosure of the hovered handle. No first-run or
+  options-page disclosure exists; the handle is sent immediately on hover.
 - Heuristic mode keeps AI processing local. Proxy and BYOK modes require the
   data-handling notice to be accepted before sending feature state and sampled
   reply text to the selected endpoint.
