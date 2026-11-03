@@ -107,11 +107,13 @@ Then load `dist-mv2/` as a temporary add-on:
 2. Go to `about:debugging` -> "This Firefox" -> "Load Temporary Add-on".
 3. Select `dist-mv2/manifest.json`.
 
-Unsigned builds run on Nightly / Developer Edition / unbranded builds only.
-`xpinstall.signatures.required=false` (about:config) allows an unsigned
-_persistent_ install on those non-release builds. It does **not** work on
-release Firefox, which requires a signed `.xpi` (see Task 10.5, not included in
-this alpha).
+Unsigned builds run on Nightly / Developer Edition / unbranded builds only. That
+is the local development path: `dist-mv2/manifest.json` is loaded as a temporary
+add-on and disappears when Firefox closes. A permanent install on release
+Firefox needs the signed `.xpi` attached to the GitHub Release
+(`npm run release` starts CI signing; nothing is signed locally). Permanent
+installs update from `releases/latest/download/updates.json` (see `update_url`
+in the manifest).
 
 ## Privacy
 

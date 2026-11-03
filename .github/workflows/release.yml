@@ -29,7 +29,8 @@
 #   - `contents: write` only because this job pushes a tag and attaches an
 #     asset to a Release. The workflow default is contents: read.
 #
-# See scripts/sign.sh for the credential-handling rules the local path shares.
+# See scripts/sign.sh for the credential-handling rules; it refuses to run
+# outside GitHub Actions, so signing exists only in this workflow.
 
 name: release
 
@@ -164,17 +165,40 @@ jobs:
       - name: Test
         run: npm test
 
+      # update_url points at the latest GitHub Release. A private repository
+      # serves those assets only to authenticated users, so every permanent
+      # install would fail its update check.
+      - name: Require a public repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          visibility="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility)"
+          if [ "$visibility" != "public" ]; then
+            echo "::error::update_url targets GitHub Releases, so ${GITHUB_REPOSITORY} must be public before a release."
+            exit 1
+          fi
+
       - name: Sign with AMO
         run: ./scripts/sign.sh
+
+      # Firefox fetches update_url -> updates.json and compares its version.
+      # The signed .xpi gets a stable asset name so the latest-release link
+      # never changes between versions.
+      - name: Prepare the update artifacts
+        run: |
+          set -euo pipefail
+          artifact="$(ls web-ext-artifacts/*.xpi)"
+          cp "$artifact" "web-ext-artifacts/ragebait-detector.xpi"
+          node scripts/update-manifest.mjs --out web-ext-artifacts/updates.json
 
       - name: Attach the signed .xpi to the Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          artifact="$(ls web-ext-artifacts/*.xpi)"
-          echo "attaching $(basename "$artifact")"
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
-            "$artifact"
+            web-ext-artifacts/ragebait-detector.xpi \
+            web-ext-artifacts/updates.json

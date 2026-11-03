@@ -51,8 +51,10 @@
       "id": "{85dba044-1a23-412f-be1c-6a116cff5d54}",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
-        "required": ["websiteActivity"]
-      }
+        "required": ["websiteActivity"],
+        "optional": ["websiteContent"]
+      },
+      "update_url": "https://github.com/berkaykrc/ragebait-x/releases/latest/download/updates.json"
     }
   }
 }

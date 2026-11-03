@@ -381,17 +381,29 @@ Incident response checklist:
 1. `npm run build`
 2. `npm run check:artifacts` (fails on credential-shaped values in build output)
 3. `npm run package` (produces `web-ext-artifacts/*.zip`)
-4. Inspect the zip before signing:
+4. Inspect the zip before release:
    `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip`. The member
    list must contain only `manifest.json`, bundled code (`*.js`, `*.css`),
    `options.*`, and icon/brand assets (`*.png`, `*.svg`) — no dotfiles, no
    configuration or secret material. Member contents were already scanned by
    `check:artifacts` (it expands zip members). Record the listing with the
    release evidence.
-5. Sign: `web-ext sign --api-key=$AMO_KEY --api-secret=$AMO_SECRET`
-   (keys from your AMO account; never commit them)
-6. Upload the signed `.xpi` to GitHub Releases / AMO.
-7. Tag: `git tag v1.0.0 && git push --tags`
+5. Release through CI: `npm run release patch` (bumps the version, commits,
+   tags, and pushes). The tag starts `.github/workflows/release.yml`, which
+   builds, tests, signs with the `AMO_KEY`/`AMO_SECRET` repository secrets, and
+   attaches two assets to the GitHub Release: `ragebait-detector.xpi` (stable
+   name) and `updates.json` (the Firefox update manifest). Signing never runs
+   locally: `scripts/sign.sh` refuses outside GitHub Actions.
+6. `update_url` points at
+   `https://github.com/berkaykrc/ragebait-x/releases/latest/download/updates.json`.
+   The add-on is self-hosted (GitHub Releases), so `npm run lint` passes
+   `--self-hosted` to web-ext; without it, addons-linter rejects `update_url`
+   as an AMO-hosted field. The repository must be public: the release workflow
+   refuses to sign when `gh api repos/<owner>/<repo>` reports anything other
+   than `public`, because private release assets cannot serve update checks.
+7. Permanent install uses the signed `.xpi` from the GitHub Release. Local
+   development loads the unsigned `dist-mv2/manifest.json` as a temporary
+   add-on.
 
 ## Verification
 

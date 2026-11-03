@@ -2,40 +2,44 @@
 #
 # Sign the extension with AMO. Produces web-ext-artifacts/*.xpi.
 #
-# WHY THIS SCRIPT EXISTS: the AMO API key and secret are read from the
-# environment, never from a file in the repo and never from a command-line
-# argument (argv is world-readable via /proc on Linux, and it lands in shell
-# history). Export them in YOUR OWN terminal and run this script there.
+# CI ONLY: this script runs from .github/workflows/release.yml, where the AMO
+# key and secret come from GitHub Actions secrets. It refuses to run anywhere
+# else. Local development loads the unsigned build from dist-mv2/manifest.json;
+# a signed .xpi exists only as a GitHub Release asset.
 #
-#   export AMO_KEY='user:12345678:987'
-#   export AMO_SECRET='<64 hex chars>'
-#   ./scripts/sign.sh
-#
-# Do NOT export these in the shell that launches the agent -- a child process
-# inherits the environment, and anything exported there becomes readable by
-# every tool call the agent makes. Use a separate terminal for signing.
-#
-# The values are never echoed, logged, or written anywhere by this script.
+# The credentials are read from the environment, never from a file in the repo
+# and never from a command-line argument (argv is world-readable via /proc on
+# Linux, and it lands in shell history). The values are never echoed, logged,
+# or written anywhere by this script.
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+  cat >&2 <<'EOF'
+error: signing is CI-only.
+
+Local development loads the unsigned build:
+
+  npm run build
+  about:debugging -> This Firefox -> Load Temporary Add-on
+  -> dist-mv2/manifest.json
+
+A signed .xpi is produced by .github/workflows/release.yml and attached to the
+GitHub Release. Do not sign locally.
+EOF
+  exit 1
+fi
+
 if [[ -z "${AMO_KEY:-}" || -z "${AMO_SECRET:-}" ]]; then
   cat >&2 <<'EOF'
 error: AMO_KEY and AMO_SECRET are not set.
 
-Get them from addons.mozilla.org -> Tools -> Developer -> API Key.
-The secret is shown only once, so copy it when you generate it.
-
-Then, in this terminal:
-
-  export AMO_KEY='user:12345678:987'
-  export AMO_SECRET='<the secret>'
-  ./scripts/sign.sh
-
-Do not put the values in a file inside this repository, and do not pass them
-as command-line arguments.
+The release workflow supplies them from the repository's GitHub Actions
+secrets (AMO_KEY, AMO_SECRET). Set both secrets before running the release
+workflow. Never put the values in a file inside this repository, and never
+pass them as command-line arguments.
 EOF
   exit 1
 fi

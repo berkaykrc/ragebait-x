@@ -10,7 +10,7 @@
     "check:artifacts": "node scripts/check-artifacts.mjs",
     "icons": "node scripts/icons.mjs",
     "lint:mv3": "node --test tests/build/dual-manifest.test.js",
-    "lint": "web-ext lint --source-dir dist-mv2 --warnings-as-errors && npm run lint:mv3",
+    "lint": "web-ext lint --source-dir dist-mv2 --warnings-as-errors --self-hosted && npm run lint:mv3",
     "lint:js": "deno lint",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
