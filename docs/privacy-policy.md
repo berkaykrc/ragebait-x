@@ -1,6 +1,6 @@
 # Privacy Policy — Ragebait Detector
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
 ## What the extension does
 
@@ -31,10 +31,18 @@ keys and deployment secrets stay in Cloudflare Worker secrets.
 
 No personal data is retained by the extension beyond your local settings and
 cache. The Worker shared KV cache stores analysis results under a derived key
-for up to 48 hours. Model misses consume one daily quota unit per install
-token. X account IDs, where enabled, and install tokens are quota/accounting
-identifiers only: callers can forge them, and they are not authentication or
-proof of an official client. No account-level history is kept.
+for up to 48 hours. Alongside that cache, the Worker stores daily quota
+counters (one count per derived identity per UTC day) under an
+HMAC-derived pseudonymous key — raw X account IDs and install tokens never
+appear in a stored quota key once the derivation secret is configured — and
+each counter is reset and evicted after 48 hours (`worker/src/quota.js`,
+48-hour TTL). On a deployment that has not yet enabled the derivation
+secret, the temporary migration path keys the daily counter with the
+(forgeable, self-generated) install token instead. Model misses consume one
+daily quota unit per identity. X account IDs, where enabled, and install
+tokens are quota/accounting identifiers only: callers can forge them, and
+they are not authentication or proof of an official client. No
+account-level history is kept.
 
 The hosted Worker does not offer reliable account-level export or deletion: a
 public identifier is not proof of identity, and cached entries expire

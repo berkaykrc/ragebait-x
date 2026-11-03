@@ -26,8 +26,12 @@ const ALLOWED_VARS_KEYS = [
 ];
 
 // Names that must never appear with a literal value in the deploy config or
-// the Worker source. Mirrors the "known deployment secret assignment" list in
-// scripts/check-artifacts.mjs so both gates name the same secret set.
+// the Worker source. This list deliberately covers the deploy-side secrets
+// of `worker/wrangler.toml` and `worker/src` ONLY: the
+// scripts/check-artifacts.mjs scan also names the AMO signing credentials
+// (AMO_KEY/AMO_SECRET), which are excluded here because they are a
+// release/signing-shell concern and never enter the deploy config or the
+// Worker source.
 const SECRET_VAR_NAMES = [
   "CLOUDFLARE_API_TOKEN",
   "CLEF_API_KEY",
@@ -47,6 +51,13 @@ const SECRET_VAR_NAMES = [
 function secretAssignmentRegex(name) {
   return new RegExp(`\\b${name}\\s*=\\s*["'][^"']*["']`, "i");
 }
+
+// Generic credential-shaped assignment: a key name mentioning api key /
+// secret / password / token assigned a long literal. Shared by the
+// wrangler.toml and worker/src checks below so both gates scan the same
+// pattern.
+const CREDENTIAL_SHAPED_ASSIGNMENT =
+  /\b[\w-]*(api[-_]?key|secret|password|token)[\w-]*\s*=\s*["'][^"']{16,}["']/i;
 
 function readWranglerToml() {
   return readFileSync(WRANGLER_TOML, "utf8");
@@ -236,11 +247,10 @@ test("task5: no secret-shaped assignment appears anywhere in wrangler.toml", () 
       `${name} must only be set through "npx wrangler secret put", never written into wrangler.toml`,
     );
   }
-  // Generic credential-shaped assignment: a key name mentioning api key /
-  // secret / password / token assigned a long literal.
+  // Generic credential-shaped assignment (shared constant above).
   assert.doesNotMatch(
     toml,
-    /\b[\w-]*(api[-_]?key|secret|password|token)[\w-]*\s*=\s*["'][^"']{16,}["']/i,
+    CREDENTIAL_SHAPED_ASSIGNMENT,
     "wrangler.toml must not contain credential-shaped assignments",
   );
 });
@@ -273,7 +283,7 @@ test("task5: worker source contains no hardcoded credential assignments", () => 
     }
     assert.doesNotMatch(
       source,
-      /\b[\w-]*(api[-_]?key|secret|password|token)[\w-]*\s*=\s*["'][^"']{16,}["']/i,
+      CREDENTIAL_SHAPED_ASSIGNMENT,
       `${file}: credential-shaped literal assignment in worker/src`,
     );
   }

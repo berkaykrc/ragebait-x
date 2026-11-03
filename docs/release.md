@@ -67,6 +67,43 @@ the Cloudflare account; this file cannot enforce it.
    roles; `CLOUDFLARE_ACCOUNT_ID` is a public account identifier and not
    sensitive, but write access to the account is.
 
+### Operator step: production hardening (identity privacy + atomic limit)
+
+`worker/wrangler.toml` declares only the `CACHE_KV` namespaces, the three
+environments, and the public `[vars]` tables — no `[[durable_objects]]`
+entry and no operator secrets. Two protections above the code defaults are
+therefore deploy-side only. A docs-following deploy that skips this step
+runs the best-effort legacy quota counter and persists raw install-token
+quota keys:
+
+1. Bind the server derivation secret:
+   `npx wrangler secret put INSTALL_TOKEN_SECRET --env production`
+   (type the value on stdin when prompted). With it, daily quota keys are
+   HMAC-derived pseudonymous namespaces (`deriveQuotaNamespace` in
+   `worker/src/quota.js:188-228`): the raw X viewer ID or install token
+   never appears in a stored key. Without it, the legacy migration path keys
+   KV as `quota:{installToken}:{date}` (`getQuotaKey`,
+   `worker/src/quota.js:83-96`), and a request presenting
+   `X-Quota-Identity` fails closed with the bounded
+   `{"error":"quota_unavailable"}` 503 ("Server secret required for
+   x-account namespace", `worker/src/index.js:99-115`).
+2. Bind a serialized daily counter as `env.QUOTA_COUNTER` — the binding
+   contract is `incr(key: string): Promise<number>` returning the
+   post-increment count and never racing across concurrent requests
+   (contract + atomic consumer in `worker/src/quota.js:273-316`; binding
+   resolution in `worker/src/index.js:156-181`). This repository ships **no**
+   such class: a serialized backend (e.g. a Cloudflare Durable Object keyed
+   by the counter key) is operator-provided infrastructure, out of
+   `wrangler.toml` by design. State plainly in release evidence: without
+   this binding the daily per-identity limit is the legacy KV read/put
+   counter (`worker/src/quota.js:318+`), which is **best effort under
+   concurrency** (a concurrent race can consume beyond the limit); the
+   atomic, truly-enforced daily limit requires this operator-provided
+   binding. A binding that is present but does not satisfy the contract
+   fails closed with the bounded `quota_unavailable` 503 — it never
+   silently degrades to the legacy counter
+   (`worker/src/index.js:156-181`, `:343-350`).
+
 ### Operator step: staged behavior gate (not runnable from this repository)
 
 Deploying to staging and probing the live Worker needs Cloudflare credentials,
@@ -116,7 +153,10 @@ shell command line or this file.
      -H 'content-type: application/json' -H "X-Install-Token: $STAGE_TOKEN" \
      --data-binary @payload.json
    diff miss.json hit.json          # identical (200; no x-quota-remaining on hits)
-   grep -ci retry-after hit.headers # 0 — never a 503 while cached
+   # grep exits 1 when the count is 0 (the expected value), so neutralize it
+   # for `set -e` scripts and read the printed count instead:
+   retry_count=$(grep -ci retry-after hit.headers || true)
+   echo "$retry_count"              # 0 — never a 503 while cached
    ```
 
 3. **Quota exhaustion (429 shape)** — the per-identity daily limit is code
@@ -186,7 +226,7 @@ shell command line or this file.
      -H 'content-type: application/json' \
      -H "X-Install-Token: ceil-$STAGE_TOKEN-4" \
      --data-binary @probe.json
-   npx wrangler secret delete GLOBAL_DAILY_MODEL_CEILING --env staging
+   npx wrangler secret delete GLOBAL_DAILY_MODEL_CEILING --env staging   # prompts for confirmation on stdin; answer with y
    ```
 
    Expected: three fresh-identity misses succeed; the fourth distinct miss
@@ -226,16 +266,24 @@ shell command line or this file.
    Expected: HTTP 502 `{"error":"ai_unavailable"}` with an
    `x-quota-remaining` header showing the consumed unit — a miss spends its
    unit even when the model fails, and a failed miss is not cached. A 200
-   response is not evidence of a broken gate; it records that Clef succeeded
-   with a corrupt Jev sole fallback — rerun only after making Clef fail (and
-   with a further-distinct `replySample[0]`, since the 200 was cached for the
-   identical body).
+   response is not evidence of a broken gate: this procedure corrupts
+   **both** upstream credentials, so a 200 means one of them was still live —
+   the deployment's configured name differs from the one corrupted (Clef
+   reads `CLOUDFLARE_API_TOKEN` then `CLEF_API_KEY`; Jev reads
+   `TYPESAFE_API_KEY` then `JEV_API_KEY`), or the restore step above already
+   ran. Re-corrupt the names this deployment actually configures and rerun
+   with a further-distinct `replySample[0]`, since the 200 was cached for
+   the identical body.
 
 7. **Fail-closed quota store** — with the KV binding temporarily removed from
    the staging config (`npx wrangler deploy --env staging`), a fresh model
    miss must answer HTTP 503 `{"error":"quota_unavailable"}`,
-   `Retry-After: 60`; a matching cached entry still returns 200. Restore the
-   binding and redeploy immediately after recording.
+   `Retry-After: 60`. With the binding gone there is no store and no cached
+   entry can be returned (`getCachedAnalysis` returns null without KV, and
+   every `/analyze` miss takes this 503) — only the miss-side 503 is
+   testable here. The "cached responses keep serving" property belongs to
+   the kill switch (check 4), not to a removed binding. Restore the binding
+   and redeploy immediately after recording.
 
 8. **Edge WAF / per-IP rate limits** — independent of Worker code by design
    (they are Cloudflare edge configuration, documented in `worker/src/index.js`
