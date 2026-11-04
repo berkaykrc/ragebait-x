@@ -23,7 +23,7 @@ request came from an official or unmodified client.
 
 - Latest release: [Releases](../../releases/latest). The version of record is
   `version` in `manifest.mv2.json`, which the release workflow bumps.
-- Modes: heuristic, proxy, BYOK, and self-hosted (`MODEL_VERSION = "h1"`,
+- Modes: heuristic, proxy, and BYOK (`MODEL_VERSION = "h1"`,
   `FEATURE_VERSION = "f1"`)
 - Browser: Firefox (MV2). Chrome/MV3 is post-v1 and unverified.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
