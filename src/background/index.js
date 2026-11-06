@@ -115,6 +115,7 @@ function resolveDeps(deps = {}) {
   const composeScore = d.composeScore ?? defaultComposeScore;
 
   const token = d.token ?? d.sessionToken ?? null;
+  const resolveToken = isFn(d.resolveToken) ? d.resolveToken : null;
   const config = d.config && typeof d.config === "object" ? d.config : {};
   const browserApi = d.browserApi ?? d.browser ?? null;
   const onResponse = isFn(d.onResponse) ? d.onResponse : null;
@@ -143,6 +144,7 @@ function resolveDeps(deps = {}) {
     computeFeatures,
     composeScore,
     token,
+    resolveToken,
     config,
     browserApi,
     onResponse,
@@ -519,6 +521,7 @@ export function createBackground(deps = {}) {
   const r = resolveDeps(deps);
   const dedupeMap = r.dedupeMap;
   const token = r.token || generateToken();
+  const resolveToken = r.resolveToken;
   const config = r.config && typeof r.config === "object" ? r.config : {};
   const browserApi = r.browserApi;
   const sessions = new Map();
@@ -541,7 +544,10 @@ export function createBackground(deps = {}) {
     }
 
     if (message.type === "rb:config") {
-      return { token, config: extra.config ?? config };
+      // Correlation token (public by design, D13). Reading it from storage
+      // keeps it stable across service-worker restarts in MV3.
+      const sessionToken = resolveToken ? await resolveToken() : token;
+      return { token: sessionToken, config: extra.config ?? config };
     }
 
     if (message.type === "rb:score-request") {
@@ -714,6 +720,31 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
       ),
   };
 
+  // Session-correlation token. Correlation, not authentication (D13): the
+  // page can read it from the config tag. It is persisted in storage.local so
+  // an MV3 service-worker restart reissues the SAME token to content scripts
+  // that are still alive with the old one. Valid on MV2 too, where
+  // storage.session does not exist. Outliving the browser session is fine.
+  const SESSION_TOKEN_KEY = "session_token";
+  let sessionTokenPromise = null;
+  const resolveSessionToken = () => {
+    if (!sessionTokenPromise) {
+      sessionTokenPromise = (async () => {
+        if (!storage) return generateToken();
+        try {
+          const stored = await storage.get(SESSION_TOKEN_KEY);
+          if (typeof stored === "string" && stored.length > 0) return stored;
+        } catch { /* fall through to a fresh token */ }
+        const fresh = generateToken();
+        try {
+          await storage.set(SESSION_TOKEN_KEY, fresh);
+        } catch { /* best effort: a token still exists in memory */ }
+        return fresh;
+      })();
+    }
+    return sessionTokenPromise;
+  };
+
   // Load the saved settings and the install token fresh for every score
   // request. Never throws: any storage failure leaves the defaults in place.
   const requestDeps = async () => {
@@ -738,6 +769,7 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   const bg = createBackground({
     browserApi,
     storage,
+    resolveToken: resolveSessionToken,
     fetchImpl: typeof fetch !== "undefined" ? fetch : undefined,
     now: () => Date.now(),
     // Diagnosability: the page world logs; the background must too, or a

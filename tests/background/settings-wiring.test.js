@@ -134,6 +134,32 @@ test("wiring: saved proxy settings + consent are applied to every score request"
   assert.ok(store.has(INSTALL_TOKEN_KEY), "token must persist for reuse");
 });
 
+test("wiring: rb:config token survives a background restart", async () => {
+  // MV3 service workers are torn down and rebuilt. The correlation token the
+  // content script got at tab load must still match after the restart, so the
+  // worker must reload the token it persisted instead of minting a new one.
+  const store = new Map();
+
+  const firstApi = makeBrowserApi(store);
+  wireBrowserRuntime(firstApi, {});
+  const first = await callListener(firstApi.listeners[0], { type: "rb:config" });
+  assert.equal(typeof first.token, "string");
+  assert.ok(first.token.length > 0, "a token is always issued");
+  assert.equal(
+    store.get("session_token"),
+    first.token,
+    "the issued token is persisted for the next worker",
+  );
+
+  // The worker sleeps; a fresh one boots against the same storage.
+  const secondApi = makeBrowserApi(store);
+  wireBrowserRuntime(secondApi, {});
+  const second = await callListener(secondApi.listeners[0], {
+    type: "rb:config",
+  });
+  assert.equal(second.token, first.token, "restart must reuse the token");
+});
+
 test("wiring: /config is fetched at most once per TTL window (B6)", async () => {
   const store = new Map();
   store.set(
