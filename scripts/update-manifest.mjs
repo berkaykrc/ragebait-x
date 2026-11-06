@@ -48,9 +48,14 @@ export function buildUpdateManifest({ id, version, link }) {
   };
 }
 
-function argValue(argv, flag) {
+export function argValue(argv, flag) {
   const index = argv.indexOf(flag);
-  return index === -1 ? null : argv[index + 1];
+  if (index === -1) return null;
+  const value = argv[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`missing value for ${flag}`);
+  }
+  return value;
 }
 
 function main() {

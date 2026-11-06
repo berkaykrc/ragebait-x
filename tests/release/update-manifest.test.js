@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  argValue,
   buildUpdateManifest,
   STABLE_ASSET,
   updateLink,
@@ -40,6 +41,14 @@ test("rejects a missing add-on id", () => {
   assert.throws(
     () => buildUpdateManifest({ id: "", version: "1.2.3", link: LINK }),
     /id is required/,
+  );
+});
+
+test("argValue rejects a flag with no value", () => {
+  assert.throws(() => argValue(["--out"], "--out"), /missing value for --out/);
+  assert.throws(
+    () => argValue(["--out", "--version", "1.2.3"], "--out"),
+    /missing value for --out/,
   );
 });
 

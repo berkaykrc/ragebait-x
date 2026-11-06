@@ -79,30 +79,31 @@ quota keys:
 1. Bind the server derivation secret:
    `npx wrangler secret put INSTALL_TOKEN_SECRET --env production`
    (type the value on stdin when prompted). With it, daily quota keys are
-   HMAC-derived pseudonymous namespaces (`deriveQuotaNamespace` in
-   `worker/src/quota.js:188-228`): the raw X viewer ID or install token
+   HMAC-derived pseudonymous namespaces (`deriveQuotaNamespace`,
+   `worker/src/quota.js`): the raw X viewer ID or install token
    never appears in a stored key. Without it, the legacy migration path keys
    KV as `quota:{installToken}:{date}` (`getQuotaKey`,
-   `worker/src/quota.js:83-96`), and a request presenting
+   `worker/src/quota.js`), and a request presenting
    `X-Quota-Identity` fails closed with the bounded
    `{"error":"quota_unavailable"}` 503 ("Server secret required for
-   x-account namespace", `worker/src/index.js:99-115`).
+   x-account namespace", `buildQuotaCounterKey` in `worker/src/index.js`).
 2. Bind a serialized daily counter as `env.QUOTA_COUNTER` — the binding
    contract is `incr(key: string): Promise<number>` returning the
    post-increment count and never racing across concurrent requests
-   (contract + atomic consumer in `worker/src/quota.js:273-316`; binding
-   resolution in `worker/src/index.js:156-181`). This repository ships **no**
+   (contract + atomic consumer in `worker/src/quota.js`; binding
+   resolution in `resolveQuotaCounter`, `worker/src/index.js`). This repository ships **no**
    such class: a serialized backend (e.g. a Cloudflare Durable Object keyed
    by the counter key) is operator-provided infrastructure, out of
    `wrangler.toml` by design. State plainly in release evidence: without
    this binding the daily per-identity limit is the legacy KV read/put
-   counter (`worker/src/quota.js:318+`), which is **best effort under
+   counter (legacy path `checkAndConsumeQuotaLegacyCounter`, `worker/src/quota.js`), which is **best effort under
    concurrency** (a concurrent race can consume beyond the limit); the
    atomic, truly-enforced daily limit requires this operator-provided
    binding. A binding that is present but does not satisfy the contract
    fails closed with the bounded `quota_unavailable` 503 — it never
    silently degrades to the legacy counter
-   (`worker/src/index.js:156-181`, `:343-350`).
+   (`resolveQuotaCounter` and the fail-closed quota 503 path,
+   `worker/src/index.js`).
 
 ### Operator step: staged behavior gate (not runnable from this repository)
 
@@ -248,8 +249,8 @@ shell command line or this file.
    authenticates with its own token, so this is safe to corrupt and restore).
    Corrupt the names the deployment actually configured — Clef reads the
    Worker secrets `CLOUDFLARE_API_TOKEN` then `CLEF_API_KEY`
-   (`worker/src/analyze.js:247-250`); Jev reads `TYPESAFE_API_KEY` then
-   `JEV_API_KEY` (`worker/src/analyze.js:345-347`):
+   (`callClef`, `worker/src/analyze.js`); Jev reads `TYPESAFE_API_KEY` then
+   `JEV_API_KEY` (`callJev`, `worker/src/analyze.js`):
 
    ```sh
    npx wrangler secret put CLOUDFLARE_API_TOKEN --env staging   # enter: invalid-for-gate
@@ -380,7 +381,10 @@ Incident response checklist:
 
 1. `npm run build`
 2. `npm run check:artifacts` (fails on credential-shaped values in build output)
-3. `npm run package` (produces `web-ext-artifacts/*.zip`)
+3. `npm run package` (`web-ext build`; writes its default
+   `web-ext-artifacts/ragebait_detector-<version>.zip` — the `{name}-{version}.zip`
+   template with the manifest name lowercased and non-alphanumerics replaced
+   with `_`).
 4. Inspect the zip before release:
    `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip`. The member
    list must contain only `manifest.json`, bundled code (`*.js`, `*.css`),
@@ -421,8 +425,8 @@ Clean XPI inspection (per release; never sign or upload at this step):
 2. `npm run package` from a clean `web-ext-artifacts/`
 3. `npm run check:artifacts` (scans `dist-mv2/`, `dist-mv3/`, and every
    zip/xpi member in `web-ext-artifacts/`)
-4. `unzip -l web-ext-artifacts/*.zip` — members are only manifests, code,
-   icons and UI assets (Extension steps above).
+4. `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip` — members are
+   only manifests, code, icons and UI assets (Extension steps above).
 5. A grep over the extracted members confirms only public endpoint and config
    identifiers besides code (the hosted proxy URL is public by design).
 

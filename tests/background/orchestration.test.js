@@ -374,7 +374,7 @@ test("background: (d) fewer than 5 replies -> insufficient", async () => {
   assert.equal(r.percent, null);
 });
 
-test("background: (f) quota exceeded keeps band", async () => {
+test("background: (f) quota exceeded keeps band (proxy mode)", async () => {
   const storage = makeStorage();
   const replies = makeReplies(6);
   // Pre-fill the daily counter to the limit.
@@ -386,10 +386,35 @@ test("background: (f) quota exceeded keeps band", async () => {
     sleepImpl: () => {},
     fetchReplies: () => ({ ok: true, replies }),
     limit: MAX_DAILY_PROFILES,
+    // The local cap gates proxy mode only; the AI call is a spy so no
+    // network happens in the test.
+    settings: {
+      mode: "proxy",
+      consentAccepted: true,
+      proxyUrl: "https://example.test/analyze",
+    },
+    analyzeWithAi: () =>
+      Promise.resolve({ band: "medium", percent: 66, model: "spy" }),
   });
   assert.equal(r.state, "quota");
   assert.ok(r.band);
-  assert.equal(r.heuristic, true);
+  assert.equal(r.heuristic, false);
+});
+
+test("background: (f2) local quota does not gate heuristic mode", async () => {
+  const storage = makeStorage();
+  const replies = makeReplies(6);
+  const key = "stats:1970-01-01";
+  storage.set(key, MAX_DAILY_PROFILES);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now: () => 0,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: true, replies }),
+    limit: MAX_DAILY_PROFILES,
+    settings: { mode: "heuristic" },
+  });
+  assert.equal(r.state, "result");
 });
 
 test("background: (i) handleMessage single makeScoreResponse", async () => {

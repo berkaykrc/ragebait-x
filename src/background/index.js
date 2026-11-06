@@ -435,13 +435,19 @@ export async function handleScoreRequest(handle, deps = {}) {
         );
       }
 
-      // Local daily quota check (after we have a band, so quota state keeps it).
+      // Local daily quota check — proxy mode only. The hosted service runs
+      // on the cloud with real per-install limits and cost; heuristic and
+      // BYOK consume nothing of ours, so no cap applies there (BYOK runs
+      // against the endpoint the user configured, under its own limits).
+      // Cache hits return earlier and never consume.
       let quotaAllowed = true;
-      try {
-        const q = await r.consume(r.storage, now(), r.limit);
-        if (q && q.allowed === false) quotaAllowed = false;
-      } catch {
-        quotaAllowed = true;
+      if (mode === "proxy") {
+        try {
+          const q = await r.consume(r.storage, now(), r.limit);
+          if (q && q.allowed === false) quotaAllowed = false;
+        } catch {
+          quotaAllowed = true;
+        }
       }
 
       if (

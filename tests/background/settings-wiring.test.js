@@ -92,7 +92,6 @@ test("wiring: saved proxy settings + consent are applied to every score request"
       proxyUrl: "https://example.test/analyze",
       byokEndpoint: "",
       apiKey: "",
-      misclassificationEmail: "",
     }),
   );
 
@@ -165,7 +164,6 @@ test("wiring: settings saved AFTER load are picked up on a later request", async
       proxyUrl: "https://example.test/analyze",
       byokEndpoint: "",
       apiKey: "",
-      misclassificationEmail: "",
     }),
   );
 

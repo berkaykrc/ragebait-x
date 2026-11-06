@@ -46,20 +46,46 @@
         > Bring your own key</label>
     </fieldset>
 
+    <div class="rb-notice rb-rise" role="note" style="animation-delay: 105ms">
+      <span class="rb-notice-title">Data notice</span>
+      <p class="rb-notice-text">
+        The hovered X handle is sent to
+        <span class="rb-mono">api.fxtwitter.com</span> to fetch its public
+        replies — in every mode. In Heuristic mode this is the only off-device
+        call; scoring runs on your device.
+      </p>
+    </div>
+
     <div id="mode-extra" hidden></div>
 
-    <div id="consent-ai" hidden class="rb-card">
+    <div id="consent-ai" hidden class="rb-card rb-warning rb-rise">
+      <span class="rb-notice-title">Data notice — AI mode</span>
+      <p
+        class="rb-ai-status rb-ai-status--off"
+        id="ai-mode-status"
+        role="status"
+        hidden
+      >
+      </p>
+      <p class="rb-notice-text" data-mode-note="proxy">
+        Proxy mode sends the handle, the computed feature object and up to 12
+        reply snippets (truncated to 400 characters) to the hosted Worker. The
+        Worker forwards a normalised version to Clef 27B, with Jev as fallback,
+        and may keep results in a shared cache for 48 hours. The hosted service
+        allows 200 analyses per install per day.
+      </p>
+      <p class="rb-notice-text" data-mode-note="byok">
+        BYOK sends the same payload to the endpoint you configure, authorised by
+        your API key. The operator of that endpoint controls how the data is
+        used and retained — read their terms and limits. Their limits apply; the
+        hosted 200-per-day limit does not. The author never receives the data.
+      </p>
       <label for="consentAccepted" class="rb-label"><input
           type="checkbox"
           name="consentAccepted"
           id="consentAccepted"
           class="rb-input"
-        > I accept the data handling above</label>
-      <p class="rb-small-print">
-        The hovered X handle is sent to api.fxtwitter.com to fetch replies. AI
-        mode additionally sends feature state and reply snippets to the selected
-        endpoint.
-      </p>
+        > I accept the data handling described above</label>
     </div>
 
     <div id="proxy-fields" style="display: none" class="rb-card">
@@ -74,22 +100,23 @@
       <input type="password" name="apiKey" id="apiKey" class="rb-input">
     </div>
 
-    <label
-      for="misclassification-email"
+    <div
       class="rb-card rb-rise"
-      style="animation-delay: 140ms"
+      style="animation-delay: 210ms"
+      id="quota-card"
+      hidden
     >
-      <span class="rb-label">Misclassification report email</span>
-      <input type="email" id="misclassification-email" class="rb-input">
-    </label>
-
-    <div class="rb-card rb-rise" style="animation-delay: 210ms">
-      <span class="rb-label">Quota</span>
+      <span class="rb-label">Quota — proxy mode</span>
       <p class="rb-stat">
         Profiles analysed today:
         <span id="quota-used" class="rb-stat-value rb-mono">0</span>
         /
         <span id="quota-limit" class="rb-mono">200</span>
+      </p>
+      <p class="rb-notice-text">
+        Counts fresh analyses on this device in proxy mode. The hosted service
+        enforces the same 200 per install per day. Heuristic and BYOK modes
+        consume nothing of ours; BYOK is limited by your endpoint.
       </p>
     </div>
 
@@ -120,8 +147,17 @@
       </div>
     </div>
 
-    <p class="rb-report rb-rise" style="animation-delay: 330ms">
-      <a id="misclassification-mailto" href="#">Report a misclassification</a>
+    <p
+      class="rb-report rb-rise"
+      style="animation-delay: 330ms"
+      hidden
+      id="misclassification-report"
+    >
+      <a
+        href="https://github.com/berkaykrc/ragebait-x/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+      >Report a misclassification</a>
     </p>
 
     <div class="rb-actions rb-rise" style="animation-delay: 380ms">

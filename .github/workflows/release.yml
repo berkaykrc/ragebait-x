@@ -91,6 +91,12 @@ jobs:
 
           tag="v${VERSION}"
 
+          # Later steps (tag assert, gh release create) must resolve the tag
+          # the same way on both paths: the button path exports RELEASE_TAG,
+          # the tag path falls back to GITHUB_REF_NAME. GITHUB_REF_NAME on
+          # this path is the branch, not the tag.
+          echo "RELEASE_TAG=${tag}" >> "$GITHUB_ENV"
+
           # AMO rejects re-uploading a version it already holds, so a reused
           # number is unrecoverable. Catch it before signing rather than after.
           if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
@@ -137,17 +143,21 @@ jobs:
       # tag path -- git tags and AMO versions are separate histories, and local
       # tags say nothing about what AMO holds. AMO's own error is the clearest
       # report of that. The button path catches it above, where it can.
+      #
+      # RELEASE_TAG holds the tag the button path pushed; the tag path leaves
+      # it unset and falls back to GITHUB_REF_NAME.
       - name: Assert the tag matches the manifest version
         run: |
           set -euo pipefail
+          tag_name="${RELEASE_TAG:-${GITHUB_REF_NAME}}"
           current="$(node -p 'JSON.parse(require("fs").readFileSync("manifest.mv2.json","utf8")).version')"
-          expected="${GITHUB_REF_NAME#v}"
+          expected="${tag_name#v}"
           if [ "$current" != "$expected" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match manifest version ${current}"
+            echo "::error::tag ${tag_name} does not match manifest version ${current}"
             echo "Bump \"version\" in manifest.mv2.json, or use the Run workflow button."
             exit 1
           fi
-          echo "tag ${GITHUB_REF_NAME} matches manifest version ${current}"
+          echo "tag ${tag_name} matches manifest version ${current}"
 
       - name: Build
         run: npm run build
@@ -197,8 +207,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
+          tag_name="${RELEASE_TAG:-${GITHUB_REF_NAME}}"
+          gh release create "${tag_name}" \
+            --title "${tag_name}" \
             --generate-notes \
             web-ext-artifacts/ragebait-detector.xpi \
             web-ext-artifacts/updates.json

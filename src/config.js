@@ -13,3 +13,10 @@ export const FEATURE_VERSION = "f1";
 // sends reply data to when proxy mode is selected. Task 11 pins this value.
 export const DEFAULT_PROXY_URL =
   "https://ragebait-proxy.dontseemyass.workers.dev/analyze";
+
+// Where misclassification reports and other feedback go. The options page
+// shows a "Report a misclassification" link to this URL and hides the link
+// when it is an empty string. It is not a secret; self-hosters: replace this
+// with your own tracker (or "" to hide the link) and rebuild. The default
+// points at the upstream project's issue tracker.
+export const ISSUES_URL = "https://github.com/berkaykrc/ragebait-x/issues";

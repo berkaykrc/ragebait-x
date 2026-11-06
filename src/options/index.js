@@ -21,11 +21,10 @@
 //   proxyUrl:            string
 //   byokEndpoint:        string
 //   apiKey:              string
-//   misclassificationEmail: string
 //
-// Defaults: heuristic, false, DEFAULT_PROXY_URL, "", "", "".
+// Defaults: heuristic, false, DEFAULT_PROXY_URL, "", "".
 
-import { DEFAULT_PROXY_URL } from "../config.js";
+import { DEFAULT_PROXY_URL, ISSUES_URL } from "../config.js";
 
 export const SETTINGS_KEY = "settings";
 
@@ -35,12 +34,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   proxyUrl: DEFAULT_PROXY_URL,
   byokEndpoint: "",
   apiKey: "",
-  misclassificationEmail: "",
 });
 
-// Re-export the default proxy URL so the UI (and tests) reference one
+// Re-export the shared constants so the UI (and tests) reference one
 // constant imported from src/config.js.
-export { DEFAULT_PROXY_URL };
+export { DEFAULT_PROXY_URL, ISSUES_URL };
 
 const MODES = new Set(["heuristic", "proxy", "byok"]);
 const DAILY_LIMIT = 200;
@@ -52,7 +50,6 @@ function copySettings(source) {
     proxyUrl: source.proxyUrl,
     byokEndpoint: source.byokEndpoint,
     apiKey: source.apiKey,
-    misclassificationEmail: source.misclassificationEmail,
   };
 }
 
@@ -69,12 +66,11 @@ function isValidSettings(value) {
   if (typeof value.proxyUrl !== "string") return false;
   if (typeof value.byokEndpoint !== "string") return false;
   if (typeof value.apiKey !== "string") return false;
-  if (typeof value.misclassificationEmail !== "string") return false;
   return true;
 }
 
 // Normalise an arbitrary stored value into a fresh settings object with
-// exactly the six fields. Anything invalid falls back to the defaults. A
+// exactly the five fields. Anything invalid falls back to the defaults. A
 // raw browser.storage.local result shaped { settings: {...} } is also
 // accepted (defensive; the options page adapter unwraps it anyway).
 function normalize(raw) {
@@ -165,14 +161,12 @@ export function readForm(doc = globalThis.document) {
   const byokEndpoint = doc.querySelector('input[name="byokEndpoint"]');
   const apiKey = doc.querySelector('input[name="apiKey"]');
   const consent = doc.querySelector('input[name="consentAccepted"]');
-  const email = doc.getElementById("misclassification-email");
   return {
     mode: checked ? checked.value : "heuristic",
     consentAccepted: !!consent && consent.checked,
     proxyUrl: proxyUrl ? proxyUrl.value : "",
     byokEndpoint: byokEndpoint ? byokEndpoint.value : "",
     apiKey: apiKey ? apiKey.value : "",
-    misclassificationEmail: email ? email.value : "",
   };
 }
 
@@ -190,47 +184,84 @@ export function applySettings(doc, settings) {
   if (apiKey) apiKey.value = settings.apiKey ?? "";
   const consent = doc.querySelector('input[name="consentAccepted"]');
   if (consent) consent.checked = !!settings.consentAccepted;
-  const email = doc.getElementById("misclassification-email");
-  if (email) email.value = settings.misclassificationEmail ?? "";
   updateModeUI(doc, settings.mode);
+}
+
+function noteHost(doc, name) {
+  const input = doc.querySelector(`input[name="${name}"]`);
+  return input && typeof input.value === "string" ? input.value.trim() : "";
+}
+
+/** Host (or best-effort text) for the endpoint the AI path would use. */
+function targetHost(doc, mode) {
+  const raw = mode === "proxy"
+    ? noteHost(doc, "proxyUrl") || DEFAULT_PROXY_URL
+    : noteHost(doc, "byokEndpoint");
+  try {
+    return new URL(raw).host;
+  } catch {
+    return raw || "the configured endpoint";
+  }
+}
+
+/** Reflect the effective analysis route: AI on, or heuristic fallback.
+ *  Shown only in AI modes (the card itself is hidden otherwise). */
+export function renderAiStatus(doc) {
+  const status = doc.getElementById("ai-mode-status");
+  if (!status) return;
+  const checked = doc.querySelector('input[name="mode"]:checked');
+  const mode = checked ? checked.value : "heuristic";
+  const consented = isConsentAccepted(doc);
+  const isAI = mode === "proxy" || mode === "byok";
+  status.hidden = !isAI;
+  status.classList.remove("rb-ai-status--on", "rb-ai-status--off");
+  if (!isAI) return;
+  if (!consented) {
+    status.textContent =
+      "AI analysis OFF — scoring runs on this device (heuristic) until you accept";
+    status.classList.add("rb-ai-status--off");
+    return;
+  }
+  if (mode === "byok" && noteHost(doc, "byokEndpoint").length === 0) {
+    status.textContent = "AI analysis unavailable — set your BYOK endpoint";
+    status.classList.add("rb-ai-status--off");
+    return;
+  }
+  status.textContent = `AI analysis ON — scoring via ${targetHost(doc, mode)}`;
+  status.classList.add("rb-ai-status--on");
+}
+
+/** Whether the AI data notice is accepted (gates all AI configuration). */
+export function isConsentAccepted(doc) {
+  const consent = doc.querySelector('input[name="consentAccepted"]');
+  return !!consent && consent.checked;
 }
 
 /** Toggle mode UI based on `mode`. */
 export function updateModeUI(doc, mode) {
   const isAI = mode === "proxy" || mode === "byok";
+  const consented = isConsentAccepted(doc);
   const extra = doc.getElementById("mode-extra");
   const consentAI = doc.getElementById("consent-ai");
   const proxyFields = doc.getElementById("proxy-fields");
   const byokFields = doc.getElementById("byok-fields");
+  const quotaCard = doc.getElementById("quota-card");
+  const notes = doc.querySelectorAll("[data-mode-note]");
   if (extra) extra.classList.toggle("visible", isAI);
   if (extra) extra.hidden = !isAI;
   if (consentAI) consentAI.hidden = !isAI;
-  if (proxyFields) proxyFields.style.display = mode === "proxy" ? "" : "none";
-  if (byokFields) byokFields.style.display = mode === "byok" ? "" : "none";
-}
-
-/** Pure: build a mailto link from an email address. */
-export function buildMailto(email) {
-  return {
-    href: `mailto:${email}?subject=${
-      encodeURIComponent("Ragebait Detector misclassification report")
-    }&body=${
-      encodeURIComponent(
-        "Account handle:\nBand (if any):\nWhy you think it is misclassified:\n",
-      )
-    }`,
-    label: `Report by email (${email})`,
-  };
-}
-
-/** Apply a mailto build result to `#misclassification-mailto` in `doc`. */
-export function updateMailto(doc, email) {
-  const link = doc.getElementById("misclassification-mailto");
-  if (!link) return;
-  const to = email || "ragebait-detector@example.com";
-  const linkData = buildMailto(to);
-  link.href = linkData.href;
-  link.textContent = linkData.label;
+  // Endpoint configuration stays hidden until the notice is accepted.
+  if (proxyFields) {
+    proxyFields.style.display = mode === "proxy" && consented ? "" : "none";
+  }
+  if (byokFields) {
+    byokFields.style.display = mode === "byok" && consented ? "" : "none";
+  }
+  if (quotaCard) quotaCard.hidden = mode !== "proxy";
+  for (const note of notes) {
+    note.style.display = note.dataset.modeNote === mode ? "" : "none";
+  }
+  renderAiStatus(doc);
 }
 
 /** Load settings from storage and render the form. */
@@ -312,20 +343,31 @@ function markSaved(btn) {
   }, SAVE_CONFIRM_MS);
 }
 
+/** Show the report link with the configured URL, or keep it hidden. */
+export function wireReportLink(doc, issuesUrl) {
+  const report = doc.getElementById("misclassification-report");
+  if (!report) return;
+  const link = report.querySelector("a");
+  if (!link || typeof issuesUrl !== "string" || issuesUrl.length === 0) {
+    return; // stays hidden: no tracker configured for this build
+  }
+  link.href = issuesUrl;
+  report.hidden = false;
+}
+
 /** Boot the options page in the extension page only. */
 async function boot() {
   if (!isExtensionPage()) return;
 
-  const settings = await loadAndRender();
+  await loadAndRender();
   refreshQuota();
-  updateMailto(document, settings.misclassificationEmail);
+  wireReportLink(document, ISSUES_URL);
 
   const saveBtn = document.getElementById("save-btn");
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
       await handleSave();
-      const next = await loadAndRender();
-      updateMailto(document, next.misclassificationEmail);
+      await loadAndRender();
       refreshQuota();
     });
   }
@@ -336,6 +378,19 @@ async function boot() {
       const checked = document.querySelector('input[name="mode"]:checked');
       updateModeUI(document, checked ? checked.value : "heuristic");
     });
+  }
+  const consent = document.querySelector('input[name="consentAccepted"]');
+  if (consent) {
+    consent.addEventListener("change", () => {
+      const checked = document.querySelector('input[name="mode"]:checked');
+      updateModeUI(document, checked ? checked.value : "heuristic");
+    });
+  }
+  for (const name of ["proxyUrl", "byokEndpoint"]) {
+    const endpoint = document.querySelector(`input[name="${name}"]`);
+    if (endpoint) {
+      endpoint.addEventListener("input", () => renderAiStatus(document));
+    }
   }
 }
 
