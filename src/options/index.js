@@ -262,14 +262,14 @@ export function updateModeUI(doc, mode) {
   if (consentAI) consentAI.hidden = !isAI;
   // Endpoint configuration stays hidden until the notice is accepted.
   if (proxyFields) {
-    proxyFields.style.display = mode === "proxy" && consented ? "" : "none";
+    proxyFields.hidden = !(mode === "proxy" && consented);
   }
   if (byokFields) {
-    byokFields.style.display = mode === "byok" && consented ? "" : "none";
+    byokFields.hidden = !(mode === "byok" && consented);
   }
   if (quotaCard) quotaCard.hidden = mode !== "proxy";
   for (const note of notes) {
-    note.style.display = note.dataset.modeNote === mode ? "" : "none";
+    note.hidden = note.dataset.modeNote !== mode;
   }
   renderAiStatus(doc);
 }
