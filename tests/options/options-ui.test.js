@@ -6,7 +6,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 
-import { browserStorageAdapter, updateModeUI } from "../../src/options/index.js";
+import {
+  browserStorageAdapter,
+  updateModeUI,
+} from "../../src/options/index.js";
 
 const html = readFileSync(
   new URL("../../src/options/index.html", import.meta.url),
@@ -36,9 +39,10 @@ test("options storage adapter reads and writes through chrome when browser is un
   const chrome = {
     storage: {
       local: {
-        get: async (key) => ({ [key]: "stored-value" }),
-        set: async (items) => {
+        get: (key) => Promise.resolve({ [key]: "stored-value" }),
+        set: (items) => {
           written.push(items);
+          return Promise.resolve();
         },
       },
     },

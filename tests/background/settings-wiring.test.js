@@ -142,7 +142,9 @@ test("wiring: rb:config token survives a background restart", async () => {
 
   const firstApi = makeBrowserApi(store);
   wireBrowserRuntime(firstApi, {});
-  const first = await callListener(firstApi.listeners[0], { type: "rb:config" });
+  const first = await callListener(firstApi.listeners[0], {
+    type: "rb:config",
+  });
   assert.equal(typeof first.token, "string");
   assert.ok(first.token.length > 0, "a token is always issued");
   assert.equal(
