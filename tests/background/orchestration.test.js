@@ -319,6 +319,18 @@ test("createBackground handleMessage single response", async () => {
   assert.equal(responses.length, 1);
 });
 
+test("createBackground: an explicit token does not shadow the resolver", async () => {
+  // Precedence must be visible: whatever rb:config serves is what bg.token
+  // exposes, so an explicit token cannot linger as a second value.
+  const bg = createBackground({
+    token: "explicit-token",
+    resolveToken: () => Promise.resolve("resolved-token"),
+  });
+  assert.equal(bg.token, null);
+  const res = await bg.handleMessage({ type: "rb:config" });
+  assert.equal(res.token, "resolved-token");
+});
+
 test("background: (c2) partial replies on network failure -> estimated", async () => {
   const storage = makeStorage();
   const now = () => 1000;

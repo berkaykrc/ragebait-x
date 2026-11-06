@@ -520,8 +520,11 @@ export function cancelScoreRequest(handle, deps = {}) {
 export function createBackground(deps = {}) {
   const r = resolveDeps(deps);
   const dedupeMap = r.dedupeMap;
-  const token = r.token || generateToken();
   const resolveToken = r.resolveToken;
+  // With a resolver wired, the resolver is the single source of truth for
+  // `rb:config`, so this stays null even if a caller passes an explicit token.
+  // Without one, this is the per-instance token.
+  const token = resolveToken ? null : (r.token || generateToken());
   const config = r.config && typeof r.config === "object" ? r.config : {};
   const browserApi = r.browserApi;
   const sessions = new Map();
@@ -732,17 +735,34 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   const resolveSessionToken = () => {
     if (!sessionTokenPromise) {
       sessionTokenPromise = (async () => {
-        if (!storage) return generateToken();
+        // No storage at all: one token per worker instance is the best we can
+        // do, and retrying would only mint a new one on every call.
+        if (!storage) return { token: generateToken(), keep: true };
         try {
           const stored = await storage.get(SESSION_TOKEN_KEY);
-          if (typeof stored === "string" && stored.length > 0) return stored;
-        } catch { /* fall through to a fresh token */ }
+          if (typeof stored === "string" && stored.length > 0) {
+            return { token: stored, keep: true };
+          }
+        } catch {
+          // Transient read failure: fall back for this call, retry next time.
+          return { token: generateToken(), keep: false };
+        }
         const fresh = generateToken();
         try {
           await storage.set(SESSION_TOKEN_KEY, fresh);
-        } catch { /* best effort: a token still exists in memory */ }
-        return fresh;
-      })();
+          return { token: fresh, keep: true };
+        } catch {
+          // Write failure: the token never left memory. Keep this one for the
+          // worker's lifetime so live tabs and later rb:config callers still
+          // agree; only a failed READ is worth retrying.
+          return { token: fresh, keep: true };
+        }
+      })().then((res) => {
+        // Only pin a result the storage actually confirmed; a failed read must
+        // not freeze a random token for the rest of this worker's life.
+        if (!res.keep) sessionTokenPromise = null;
+        return res.token;
+      });
     }
     return sessionTokenPromise;
   };

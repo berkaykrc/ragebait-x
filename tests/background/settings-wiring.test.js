@@ -162,6 +162,76 @@ test("wiring: rb:config token survives a background restart", async () => {
   assert.equal(second.token, first.token, "restart must reuse the token");
 });
 
+test("wiring: bg.token never advertises a token the worker did not issue", async () => {
+  // With a resolver wired, rb:config serves the storage-backed token. The
+  // returned `bg.token` must not stay a second, different value.
+  const store = new Map();
+  const api = makeBrowserApi(store);
+  const bg = wireBrowserRuntime(api, {});
+  const pageConfig = await callListener(api.listeners[0], {
+    type: "rb:config",
+  });
+
+  assert.equal(typeof pageConfig.token, "string");
+  assert.equal(bg.token, null, "no shadow token next to the resolved one");
+});
+
+test("wiring: a transient token-storage failure does not pin a random token", async () => {
+  const store = new Map();
+  let sessionReads = 0;
+  const api = makeBrowserApi(store);
+  api.storage.local = {
+    get: (key) => {
+      if (key !== "session_token") return Promise.resolve({});
+      sessionReads += 1;
+      if (sessionReads === 1) return Promise.reject(new Error("transient"));
+      return Promise.resolve({ session_token: "rb-persisted" });
+    },
+    set: (items) => {
+      for (const [k, v] of Object.entries(items)) store.set(k, v);
+      return Promise.resolve();
+    },
+  };
+
+  wireBrowserRuntime(api, {});
+  const listener = api.listeners[0];
+
+  const first = await callListener(listener, { type: "rb:config" });
+  assert.notEqual(first.token, "rb-persisted", "failed read falls back");
+
+  const second = await callListener(listener, { type: "rb:config" });
+  assert.equal(
+    second.token,
+    "rb-persisted",
+    "the next call must retry storage instead of reusing the failure",
+  );
+});
+
+test("wiring: a token-write failure keeps one fallback token for the worker", async () => {
+  // Storage accepts reads but rejects writes. The minted token never reaches
+  // disk, but it must stay stable for this worker: live tabs hold the value
+  // and a token that changes per rb:config defeats correlation.
+  const api = makeBrowserApi(new Map());
+  api.storage.local = {
+    get: () => Promise.resolve({}),
+    set: () => Promise.reject(new Error("quota exceeded")),
+  };
+
+  wireBrowserRuntime(api, {});
+  const listener = api.listeners[0];
+
+  const first = await callListener(listener, { type: "rb:config" });
+  assert.equal(typeof first.token, "string");
+  assert.ok(first.token.length > 0);
+
+  const second = await callListener(listener, { type: "rb:config" });
+  assert.equal(
+    second.token,
+    first.token,
+    "a write failure must not mint a new token on every call",
+  );
+});
+
 test("wiring: /config is fetched at most once per TTL window (B6)", async () => {
   const store = new Map();
   store.set(
