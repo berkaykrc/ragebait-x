@@ -50,6 +50,34 @@ function warnCollector() {
   return { warns, warn: (...args) => warns.push(args), info: () => {} };
 }
 
+/** Replace the interval timers so a test can prove the fallback poll stops. */
+function spyIntervals() {
+  const realSet = globalThis.setInterval;
+  const realClear = globalThis.clearInterval;
+  const live = new Set();
+  const cleared = [];
+  globalThis.setInterval = (fn, ms, ...args) => {
+    const id = realSet(fn, ms, ...args);
+    live.add(id);
+    return id;
+  };
+  globalThis.clearInterval = (id) => {
+    cleared.push(id);
+    live.delete(id);
+    return realClear(id);
+  };
+  return {
+    live,
+    cleared,
+    restore() {
+      globalThis.setInterval = realSet;
+      globalThis.clearInterval = realClear;
+      for (const id of live) realClear(id);
+      live.clear();
+    },
+  };
+}
+
 // --- extractScreenName --------------------------------------------------------
 
 test("hovercard: extractScreenName reads the handle out of the path", () => {
@@ -128,6 +156,58 @@ test("hovercard: the observer wakes up when #layers mounts after boot", async ()
   assert.ok(line, "expected the analyzing line to render");
   assert.equal(warns.length, 1, "recovery must not warn again");
   assert.doesNotThrow(() => observer.dispose());
+});
+
+// --- fallback poll ------------------------------------------------------------
+
+test("hovercard: mounting #layers stops the fallback poll immediately", async () => {
+  const doc = makeDoc("<main></main>");
+  const timers = spyIntervals();
+  try {
+    const observer = createHovercardObserver({
+      document: doc,
+      consoleLike: { warn: () => {}, info: () => {} },
+    });
+    assert.equal(
+      timers.live.size,
+      1,
+      "poll is armed while #layers is missing",
+    );
+
+    const layers = doc.createElement("div");
+    layers.id = "layers";
+    doc.body.appendChild(layers);
+    // The MutationObserver path, long before the 200ms poll tick.
+    await flush();
+
+    assert.equal(
+      timers.live.size,
+      0,
+      "the poll must stop as soon as the observer finds #layers",
+    );
+    assert.equal(timers.cleared.length, 1, "cleared exactly once");
+    assert.doesNotThrow(() => observer.dispose());
+  } finally {
+    timers.restore();
+  }
+});
+
+test("hovercard: dispose stops the fallback poll when #layers never mounts", () => {
+  const doc = makeDoc("<main></main>");
+  const timers = spyIntervals();
+  try {
+    const observer = createHovercardObserver({
+      document: doc,
+      consoleLike: { warn: () => {}, info: () => {} },
+    });
+    assert.equal(timers.live.size, 1);
+
+    observer.dispose();
+
+    assert.equal(timers.live.size, 0, "dispose must not leak the poll timer");
+  } finally {
+    timers.restore();
+  }
 });
 
 // --- card open ----------------------------------------------------------------

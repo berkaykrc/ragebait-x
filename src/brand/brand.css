@@ -81,7 +81,7 @@ body.rb-options {
 }
 .ragebait-line-label {
   font-weight: 600;
-  color: var(--rb-band);
+  color: var(--rb-band, var(--rb-muted));
 }
 .ragebait-line-sep {
   display: none;

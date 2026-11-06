@@ -196,6 +196,15 @@ export function createHovercardObserver({
   const root = doc.querySelector(SELECTORS.layers);
   let inner = root ? watchLayers(root) : null;
   let rootWatcher = null;
+  // Fallback poll. Declared here, not next to setInterval below, because both
+  // the observer callback and dispose() stop it.
+  let pollInterval = null;
+  const stopPoll = () => {
+    if (pollInterval !== null) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+  };
 
   if (!root) {
     // Production timing: page.js boots at document_start, but X mounts
@@ -215,6 +224,8 @@ export function createHovercardObserver({
         );
         inner = watchLayers(mounted);
       }
+      // The observer found the root: the fallback poll has nothing left to do.
+      if (mounted) stopPoll();
       if (inner) {
         // The same batch may already carry the first cards (X's mount and a
         // hover can land in one synchronous JS turn). Those nodes were
@@ -244,19 +255,12 @@ export function createHovercardObserver({
           "ragebait: #layers mounted (poll) — hovercard observer active",
         );
         inner = watchLayers(checkedRoot);
-        clearInterval(pollInterval);
       }
-      if (pollAttempts >= pollMaxAttempts) {
-        clearInterval(pollInterval);
-      }
+      // Root found by either watcher, or budget spent: stop polling.
+      if (checkedRoot || pollAttempts >= pollMaxAttempts) stopPoll();
     };
 
-    const pollInterval = setInterval(pollHandler, 200);
-
-    // Also keep a lightweight document-level MutationObserver as a secondary
-    // # safety net. It fires when Twitter adds #layers through mechanisms that
-    // # polling doesnt catch (e.g., innerHTML replacement without childList).
-    // # (The observer above is already set up, no need to create another)
+    pollInterval = setInterval(pollHandler, 200);
   }
 
   function openCard(card) {
@@ -323,6 +327,7 @@ export function createHovercardObserver({
     dispose: () => {
       inner?.disconnect();
       rootWatcher?.disconnect();
+      stopPoll();
       doc.removeEventListener("click", onDocumentClick);
     },
   };
