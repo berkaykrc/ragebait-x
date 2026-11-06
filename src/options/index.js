@@ -26,6 +26,15 @@
 
 import { DEFAULT_PROXY_URL, ISSUES_URL } from "../config.js";
 
+/** Extension API namespace. Firefox exposes both `browser` and `chrome`;
+ *  Chromium MV3 exposes only `chrome`. One helper, one call site pattern.
+ *  Resolved per call, not at module load, so tests can swap the globals. */
+function getExtensionApi() {
+  if (typeof browser !== "undefined") return browser;
+  if (typeof chrome !== "undefined") return chrome;
+  return null;
+}
+
 export const SETTINGS_KEY = "settings";
 
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -132,16 +141,17 @@ export async function saveSettings(storage, settings) {
 }
 
 /** Adapt real browser.storage.local to the storage seam (unwrap {key: value}). */
-function browserStorageAdapter() {
+export function browserStorageAdapter() {
+  const api = getExtensionApi();
   return {
     async get(key) {
-      const res = await browser.storage.local.get(key);
+      const res = await api.storage.local.get(key);
       return res && Object.prototype.hasOwnProperty.call(res, key)
         ? res[key]
         : null;
     },
     async set(key, value) {
-      await browser.storage.local.set({ [key]: value });
+      await api.storage.local.set({ [key]: value });
     },
   };
 }
@@ -151,7 +161,7 @@ function browserStorageAdapter() {
 // ---------------------------------------------------------------------------
 
 function isExtensionPage() {
-  return typeof browser !== "undefined" && typeof document !== "undefined";
+  return getExtensionApi() !== null && typeof document !== "undefined";
 }
 
 /** Read the form state from `doc` (defaults to globalThis.document). */
@@ -283,15 +293,14 @@ async function refreshQuota() {
   const limitEl = document.getElementById("quota-limit");
   if (!usedEl || !limitEl) return;
   limitEl.textContent = String(DAILY_LIMIT);
-  if (
-    typeof browser === "undefined" || !browser.storage || !browser.storage.local
-  ) {
+  const api = getExtensionApi();
+  if (!api || !api.storage || !api.storage.local) {
     usedEl.textContent = "0";
     return;
   }
   const key = `stats:${new Date().toISOString().slice(0, 10)}`;
   try {
-    const res = await browser.storage.local.get(key);
+    const res = await api.storage.local.get(key);
     const raw = res && Object.prototype.hasOwnProperty.call(res, key)
       ? res[key]
       : null;
@@ -394,9 +403,9 @@ async function boot() {
   }
 }
 
-// Auto-boot in the extension options page only. Guarding on `browser` AND
+// Auto-boot in the extension options page only. Guarding on the API AND
 // `document` means importing this module in a Node test (or a background
 // content-script world without a document) does not touch the DOM.
-if (typeof browser !== "undefined" && typeof document !== "undefined") {
+if (getExtensionApi() && typeof document !== "undefined") {
   boot();
 }
