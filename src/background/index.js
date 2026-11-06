@@ -721,10 +721,12 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   };
 
   // Session-correlation token. Correlation, not authentication (D13): the
-  // page can read it from the config tag. It is persisted in storage.local so
-  // an MV3 service-worker restart reissues the SAME token to content scripts
-  // that are still alive with the old one. Valid on MV2 too, where
-  // storage.session does not exist. Outliving the browser session is fine.
+  // page can read it from the config tag. Persisted in storage.local (MV2 has
+  // no storage.session) so an MV3 service-worker restart hands the same token
+  // to FUTURE rb:config callers (new tabs, reloads). Content scripts already
+  // running keep the token they were given and are never re-issued one.
+  // The background does not validate this token: this is stability, not a
+  // trust fix. Outliving the browser session is fine for a public id.
   const SESSION_TOKEN_KEY = "session_token";
   let sessionTokenPromise = null;
   const resolveSessionToken = () => {

@@ -57,6 +57,47 @@ test("options storage adapter reads and writes through chrome when browser is un
   assert.deepEqual(written, [{ settings: "next-value" }]);
 });
 
+test("options page boots when only chrome exists", async () => {
+  // The finding this covers: with the old `typeof browser` guard the page
+  // stayed inert on Chromium. A fresh module instance (?boot) has to run the
+  // auto-boot block with `chrome` only and render the stored settings.
+  const doc = page();
+  const savedDocument = globalThis.document;
+  const stored = JSON.stringify({
+    mode: "proxy",
+    consentAccepted: true,
+    proxyUrl: "https://proxy.test/analyze",
+    byokEndpoint: "",
+    apiKey: "",
+  });
+  const chrome = {
+    storage: {
+      local: {
+        get: (key) =>
+          Promise.resolve(key === "settings" ? { settings: stored } : {}),
+        set: () => Promise.resolve(),
+      },
+    },
+  };
+
+  try {
+    await withChromeOnly(chrome, async () => {
+      globalThis.document = doc;
+      await import("../../src/options/index.js?chromium-boot");
+      // boot() is fire-and-forget; let its storage read settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  } finally {
+    globalThis.document = savedDocument;
+  }
+
+  assert.equal(
+    doc.getElementById("proxy-fields").hidden,
+    false,
+    "boot must render the stored proxy mode with chrome only",
+  );
+});
+
 test("options: conditional cards toggle the hidden attribute, never inline display", () => {
   const doc = page();
   const proxyFields = doc.getElementById("proxy-fields");
