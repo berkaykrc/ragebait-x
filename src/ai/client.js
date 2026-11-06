@@ -71,6 +71,65 @@ export async function fetchConfig(proxyUrl, fetchImpl = globalThis.fetch) {
   }
 }
 
+const CONFIG_CACHE_KEY = "ragebait_config_cache";
+export const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * fetchConfig with a 5-minute TTL cache in extension storage. The cache
+ * entry is bound to the proxyUrl it was fetched from, so a proxy change
+ * never serves a stale Worker's config. A failed fetch is never cached;
+ * the next call retries the network. Storage failures degrade to an
+ * uncached fetch rather than an error.
+ *
+ * @param {string} proxyUrl
+ * @param {typeof fetch} [fetchImpl]
+ * @param {{ get(keys: string | string[]): Promise<Record<string, unknown>>, set(items: Record<string, unknown>): Promise<void> }} storage items-dialect storage (same shape as getInstallToken), e.g. browser.storage.local
+ * @param {{ now?: () => number, ttlMs?: number }} [options]
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
+export async function fetchConfigCached(
+  proxyUrl,
+  fetchImpl = globalThis.fetch,
+  storage,
+  options = {},
+) {
+  if (!storage) return fetchConfig(proxyUrl, fetchImpl);
+  const ttlMs = typeof options.ttlMs === "number"
+    ? options.ttlMs
+    : CONFIG_CACHE_TTL_MS;
+  const now = typeof options.now === "function"
+    ? options.now
+    : () => Date.now();
+
+  try {
+    const data = await storage.get(CONFIG_CACHE_KEY);
+    const entry = data?.[CONFIG_CACHE_KEY];
+    if (
+      entry && typeof entry === "object" &&
+      entry.proxyUrl === proxyUrl &&
+      typeof entry.fetchedAt === "number" && Number.isFinite(entry.fetchedAt) &&
+      entry.value && typeof entry.value === "object" &&
+      now() - entry.fetchedAt < ttlMs
+    ) {
+      return entry.value;
+    }
+  } catch (_err) {
+    // Cache read failed — fetch fresh below.
+  }
+
+  const value = await fetchConfig(proxyUrl, fetchImpl);
+  if (value && typeof value === "object") {
+    try {
+      await storage.set({
+        [CONFIG_CACHE_KEY]: { proxyUrl, value, fetchedAt: now() },
+      });
+    } catch (_err) {
+      // Cache write failed — return the fresh value, run without caching.
+    }
+  }
+  return value;
+}
+
 /**
  * Executes AI analysis for the profile state in proxy or BYOK mode.
  *
@@ -131,10 +190,12 @@ export async function analyzeWithAi(
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
     // installToken in the body is the documented legacy fallback for the
     // Worker's quota identity resolution; it carries no secret material.
-    const body = {
-      state,
-      installToken: options?.installToken,
-    };
+    // Proxy mode only: a BYOK endpoint is a third-party service and must
+    // not receive our install identifier.
+    const body = { state };
+    if (mode === "proxy") {
+      body.installToken = options?.installToken;
+    }
 
     const res = await fetchImpl(endpoint, {
       method: "POST",

@@ -19,7 +19,7 @@ import {
 import { makeScoreResponse } from "./protocol.js";
 import {
   analyzeWithAi as defaultAnalyzeWithAi,
-  fetchConfig,
+  fetchConfigCached,
   getInstallToken,
 } from "../ai/client.js";
 import { loadSettings, SETTINGS_KEY } from "../options/index.js";
@@ -395,9 +395,6 @@ export async function handleScoreRequest(handle, deps = {}) {
             band = aiRes.band;
             model = aiRes.model || mode;
             heuristic = false;
-            band = aiRes.band;
-            model = aiRes.model || mode;
-            heuristic = false;
             if (
               r.config?.showNumber === true && typeof aiRes.percent === "number"
             ) {
@@ -706,26 +703,29 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
     }
     : null;
 
+  // getInstallToken and the config cache speak the items-shaped storage
+  // dialect used by browser.storage.local (get(keys) -> Record,
+  // set(items)), so adapt the (key, value) seam to it once.
+  const itemsStorage = storage && {
+    get: (key) => storage.get(key).then((value) => ({ [key]: value })),
+    set: (items) =>
+      Promise.all(
+        Object.entries(items).map(([k, v]) => storage.set(k, v)),
+      ),
+  };
+
   // Load the saved settings and the install token fresh for every score
   // request. Never throws: any storage failure leaves the defaults in place.
   const requestDeps = async () => {
     if (!storage) return {};
     try {
       const settings = await loadSettings(storage);
-      // getInstallToken speaks the items-shaped storage dialect used by
-      // browser.storage.local (get(keys) -> Record, set(items)), so adapt
-      // the (key, value) seam to it here.
-      const installToken = await getInstallToken({
-        get: (key) => storage.get(key).then((value) => ({ [key]: value })),
-        set: (items) =>
-          Promise.all(
-            Object.entries(items).map(([k, v]) => storage.set(k, v)),
-          ),
-      });
+      const installToken = await getInstallToken(itemsStorage);
       const config = settings.mode === "proxy"
-        ? await fetchConfig(
+        ? await fetchConfigCached(
           settings.proxyUrl,
           deps.fetchImpl ?? globalThis.fetch,
+          itemsStorage,
         )
         : null;
       return { settings, installToken, config: config ?? {} };

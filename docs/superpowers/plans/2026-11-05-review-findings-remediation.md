@@ -95,8 +95,10 @@ Critical.
 - **Status:** fixed 2026-11-05; **uncommitted** (`M docs/release.md`).
 - **Your decision (2026-11-05):** hold the commit. Commit each section only
   when sections A, B and C are all done.
-- [ ] A3: commit `docs/release.md` — blocked until sections A, B and C are
-  all complete (human partner ruling, 2026-11-05).
+- [x] A3: `docs/release.md` was committed as part of fc3b06b
+  (symbol-name citations + zip-name wording). The 2026-11-05 ruling
+  ("commit only when sections A, B and C are all done") never came into
+  force — the human partner committed A1–A5 together on 2026-11-06.
 
 ### A4 — Nit (optional): `update-manifest.mjs` `argValue` does not validate values
 
@@ -185,8 +187,14 @@ is released (no tag contains `27d7ad9`).
      eval; drop names.
   c. Keep as is (public handles are public data; labels are your own
      opinion) — recorded as a deliberate decision.
-- **Your decision:** ______________________________
-- [ ] B3: apply decision a / b / c.
+- **Your decision (2026-11-06):** keep — the file stays as committed in
+  `c7adb47`. It will NOT be added to `.gitignore`, and history will NOT be
+  rewritten: a single commit already shipped, and a recall would do more
+  harm than good. When calibration is done, the human partner deletes or
+  moves `data/labeled/accounts.jsonl` out of the repo. No code change;
+  recorded only.
+- [x] B3: decision recorded (keep in-tree; delete/move after calibration —
+  human partner action).
 
 ### B4 — Minor (code hygiene): duplicated assignment block
 
@@ -195,8 +203,10 @@ is released (no tag contains `27d7ad9`).
   heuristic = false;` appears twice, verbatim. Harmless at runtime; a marker
   that this block merged without re-reading. Still present on `main`.
 - **Options:** delete the duplicate three lines (1-line diff) or leave.
-- **Your decision:** ______________________________
-- [ ] B4: remove the duplicated lines; or record leave-decision.
+- **Your decision (2026-11-06):** remove the duplicates.
+- [x] B4: the verbatim duplicated three lines were removed
+  (`src/background/index.js`, the doubled `band = aiRes.band; model =
+  aiRes.model || mode; heuristic = false;`). Full gate green.
 
 ### B5 — Minor (privacy): `installToken` forwarded on BYOK requests
 
@@ -206,8 +216,12 @@ is released (no tag contains `27d7ad9`).
   `Bearer apiKey`) and hands a third-party service a stable tracking ID.
 - **Options:** send `installToken` only when `mode === "proxy"` (or omit when
   unset); or leave (documented behaviour, harmless for self-hosted endpoints).
-- **Your decision:** ______________________________
-- [ ] B5: gate `installToken` to proxy mode; or record leave-decision.
+- **Your decision (2026-11-06):** gate `installToken` to proxy mode only
+  (`mode === "proxy"`).
+- [x] B5: implemented (TDD) — the BYOK request body no longer carries
+  `installToken` (body is `{ state }`); proxy mode keeps the documented
+  `{ state, installToken }` payload; `X-Install-Token` remains proxy-only.
+  Test watched fail first, then pass.
 
 ### B6 — Minor (performance): `/config` fetched on every proxy-mode hover
 
@@ -219,31 +233,48 @@ is released (no tag contains `27d7ad9`).
   `showNumber` revert to code defaults with no signal).
 - **Options:** cache the config with a TTL (5–10 min) in extension storage;
   or leave (simple, correct, just chatty).
-- **Your decision:** ______________________________
-- [ ] B6: add TTL cache; or record leave-decision.
+- **Your decision (2026-11-06):** add TTL cache; TTL = 5 min, in extension
+  storage.
+- [x] B6: implemented (TDD) — `fetchConfigCached` in `src/ai/client.js`:
+  5-minute TTL, entry bound to the `proxyUrl` it was fetched from (a proxy
+  change never serves a stale Worker's config), failed fetches are never
+  cached (next call retries), corrupt entries are ignored. Wired into
+  `wireBrowserRuntime` via a hoisted items-dialect storage adapter shared
+  with `getInstallToken`. Wiring test proves one `/config` fetch per TTL
+  window across score requests.
 
 ---
 
 ## C. Verification and bookkeeping
 
-- Applied changes so far: A1 (README + options page + `brand.css`), A2
-  (`.github/workflows/release.yml`), A4 (`scripts/update-manifest.mjs` +
-  test), A5 (`docs/release.md`), plus A3's earlier symbol-name citations.
-  Re-verify A3 with
-  `grep -n -E '\.js:[0-9]+' docs/release.md` → no matches.
-- A1/A2/A4 touch shipped files; run the full gate (`npm run check`) before
-  anything is committed. `docs/` is fmt-excluded, but it is edited alongside
-  them.
+- Applied changes: A1 (README + options page + `brand.css`), A2
+  (`.github/workflows/release.yml`), A3/A4/A5 (`docs/release.md`,
+  `scripts/update-manifest.mjs` + test) — all committed as fc3b06b
+  ("fix: close review findings A1-A5", 2026-11-06). B3 is a decision, not a
+  change. B4 (`src/background/index.js`), B5 (`src/ai/client.js`) and B6
+  (`src/ai/client.js` + `wireBrowserRuntime` in `src/background/index.js`;
+  tests in `tests/ai/client.test.js` and
+  `tests/background/settings-wiring.test.js`) are implemented and
+  **uncommitted** as of 2026-11-06.
+- Re-verify A3 with
+  `grep -n -E '\.js:[0-9]+' docs/release.md` → no matches (re-checked
+  2026-11-06, exit 1).
+- B4/B5/B6 touch shipped files; full gate (`npm run check`) re-run
+  2026-11-06 after implementing them: deno lint (81 files), fmt, build,
+  check:artifacts, web-ext lint clean, 365/365 tests (342 at plan time,
+  357 after the A1–A5 test additions, +8 for B5/B6).
 - Commit policy (human partner, 2026-11-05): nothing is committed until
-  sections A, B and C are all done. Pushing stays your call.
-- A1, A2, A4, A5 are implemented but uncommitted; B3, B4, B5, B6 carry no
-  decisions yet and are untouched.
-- After you fill in decisions, items can be handed to implementation (or
-  closed as accepted) one by one; A1, A2, B3, B4, B5, B6 are independent of
-  each other and can land in any order.
-- `main` remains 9 commits ahead of `origin/main`; pushing stays your call.
-  None of these items blocks the staged-gate release procedure in
-  `docs/release.md`.
+  sections A, B and C are all done. In practice the partner committed
+  A1–A5 as fc3b06b before B was decided. B4/B5/B6 remain in the working
+  tree; committing them is the human partner's call. Pushing stays your
+  call.
+- All B decisions are now recorded (B1, B2 closed 2026-11-05; B3–B6
+  decided 2026-11-06). A1, A2, B4, B5, B6 are independent and can land in
+  any order. B3 leaves `data/labeled/accounts.jsonl` in the repo until
+  calibration is done, then it is deleted or moved (human partner action).
+- `main` is 10 commits ahead of `origin/main` (fc3b06b); pushing stays
+  your call. None of these items blocks the staged-gate release procedure
+  in `docs/release.md`.
 - Worker-security plan's deferred items (staging evidence etc.) stay in
   `.superpowers/sdd/2026-10-31-worker-security-plan/progress.md`; this plan
   deliberately does not duplicate them.
@@ -252,14 +283,14 @@ is released (no tag contains `27d7ad9`).
 
 | ID  | Decision | Status (open/done/rejected) | Date |
 | --- | -------- | ---------------------------- | ---- |
-| A1  | reword + heuristic path + warning-styled disclosure | done (uncommitted) | 2026-11-05 |
-| A2  | b — RELEASE_TAG via GITHUB_ENV | done (uncommitted) | 2026-11-05 |
-| A3  | commit only when sections A, B, C all done | open (blocked) | 2026-11-05 |
-| A4  | guard + one test (TDD) | done (uncommitted) | 2026-11-05 |
-| A5  | validate first; unified on `ragebait_detector-<version>.zip` | done (uncommitted) | 2026-11-05 |
-| B1  | keep deleted (accepted)      | closed 2026-11-05 |      |
-| B2  | keep deleted (accepted)      | closed 2026-11-05 |      |
-| B3  |          | open                         |      |
-| B4  |          | open                         |      |
-| B5  |          | open                         |      |
-| B6  |          | open                         |      |
+| A1  | reword + heuristic path + warning-styled disclosure | done (committed fc3b06b) | 2026-11-05 |
+| A2  | b — RELEASE_TAG via GITHUB_ENV | done (committed fc3b06b) | 2026-11-05 |
+| A3  | commit only when sections A, B, C all done | done (committed fc3b06b) | 2026-11-06 |
+| A4  | guard + one test (TDD) | done (committed fc3b06b) | 2026-11-05 |
+| A5  | validate first; unified on `ragebait_detector-<version>.zip` | done (committed fc3b06b) | 2026-11-05 |
+| B1  | keep deleted (accepted)      | closed 2026-11-05 | 2026-11-05 |
+| B2  | keep deleted (accepted)      | closed 2026-11-05 | 2026-11-05 |
+| B3  | keep; delete/move after calibration (no gitignore, no history rewrite) | done (delete/move = human partner action after calibration) | 2026-11-06 |
+| B4  | remove the duplicate | done (uncommitted) | 2026-11-06 |
+| B5  | gate `installToken` to proxy mode only (`mode === "proxy"`) | done (uncommitted) | 2026-11-06 |
+| B6  | TTL cache = 5 min in extension storage | done (uncommitted) | 2026-11-06 |

@@ -134,6 +134,53 @@ test("wiring: saved proxy settings + consent are applied to every score request"
   assert.ok(store.has(INSTALL_TOKEN_KEY), "token must persist for reuse");
 });
 
+test("wiring: /config is fetched at most once per TTL window (B6)", async () => {
+  const store = new Map();
+  store.set(
+    SETTINGS_KEY,
+    JSON.stringify({
+      mode: "proxy",
+      consentAccepted: true,
+      proxyUrl: "https://example.test/analyze",
+      byokEndpoint: "",
+      apiKey: "",
+    }),
+  );
+
+  let configFetches = 0;
+  const countingConfigFetch = (url) => {
+    configFetches += 1;
+    assert.equal(url, "https://example.test/config");
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          showNumber: true,
+          proxyEnabled: true,
+          bandThresholds: { high: 0.8, medium: 0.5 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+  };
+
+  const api = makeBrowserApi(store);
+  wireBrowserRuntime(api, {
+    fetchReplies: () => Promise.resolve({ ok: true, replies: makeReplies() }),
+    analyzeWithAi: makeSpyAi([]),
+    fetchImpl: countingConfigFetch,
+    skipCache: true,
+  });
+  const listener = api.listeners[0];
+
+  await callListener(listener, { type: "rb:score-request", handle: "one" });
+  await callListener(listener, { type: "rb:score-request", handle: "two" });
+  assert.equal(
+    configFetches,
+    1,
+    "second request must serve /config from storage cache",
+  );
+});
+
 test("wiring: settings saved AFTER load are picked up on a later request", async () => {
   // Nothing stored yet: first request is heuristic.
   const store = new Map();
