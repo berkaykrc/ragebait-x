@@ -142,16 +142,26 @@ export async function saveSettings(storage, settings) {
 
 /** Adapt real browser.storage.local to the storage seam (unwrap {key: value}). */
 export function browserStorageAdapter() {
-  const api = getExtensionApi();
+  const requireLocal = () => {
+    // Resolve per call, not at construction: a caller (or a test) that swaps
+    // the API globals after this adapter was built must not hit a stale one.
+    const api = getExtensionApi();
+    if (!api || !api.storage || !api.storage.local) {
+      // Thrown inside the async methods, so loadSettings/saveSettings catch it
+      // and fall back instead of leaking a TypeError from a null deref.
+      throw new Error("ragebait: extension storage API unavailable");
+    }
+    return api.storage.local;
+  };
   return {
     async get(key) {
-      const res = await api.storage.local.get(key);
+      const res = await requireLocal().get(key);
       return res && Object.prototype.hasOwnProperty.call(res, key)
         ? res[key]
         : null;
     },
     async set(key, value) {
-      await api.storage.local.set({ [key]: value });
+      await requireLocal().set({ [key]: value });
     },
   };
 }

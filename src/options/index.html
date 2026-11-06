@@ -67,14 +67,14 @@
         hidden
       >
       </p>
-      <p class="rb-notice-text" data-mode-note="proxy">
+      <p class="rb-notice-text" data-mode-note="proxy" hidden>
         Proxy mode sends the handle, the computed feature object and up to 12
         reply snippets (truncated to 400 characters) to the hosted Worker. The
         Worker forwards a normalised version to Clef 27B, with Jev as fallback,
         and may keep results in a shared cache for 48 hours. The hosted service
         allows 200 analyses per install per day.
       </p>
-      <p class="rb-notice-text" data-mode-note="byok">
+      <p class="rb-notice-text" data-mode-note="byok" hidden>
         BYOK sends the same payload to the endpoint you configure, authorised by
         your API key. The operator of that endpoint controls how the data is
         used and retained — read their terms and limits. Their limits apply; the

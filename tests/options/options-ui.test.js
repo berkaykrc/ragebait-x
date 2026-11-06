@@ -98,6 +98,56 @@ test("options page boots when only chrome exists", async () => {
   );
 });
 
+test("options storage adapter rejects with a clear error when storage is missing", async () => {
+  await withChromeOnly({}, async () => {
+    const storage = browserStorageAdapter();
+    await assert.rejects(
+      () => storage.get("settings"),
+      /storage API unavailable/,
+    );
+    await assert.rejects(
+      () => storage.set("settings", "x"),
+      /storage API unavailable/,
+    );
+  });
+});
+
+test("options storage adapter resolves the API per call, not per construction", async () => {
+  // The adapter is built once at load; the API can appear (or be swapped)
+  // afterwards. A captured namespace would keep failing on the stale object.
+  await withChromeOnly({}, async () => {
+    const storage = browserStorageAdapter();
+    await assert.rejects(
+      () => storage.get("settings"),
+      /storage API unavailable/,
+    );
+
+    globalThis.chrome = {
+      storage: {
+        local: {
+          get: () => Promise.resolve({ settings: "late-value" }),
+          set: () => Promise.resolve(),
+        },
+      },
+    };
+
+    assert.equal(
+      await storage.get("settings"),
+      "late-value",
+      "the adapter must look the API up on every call",
+    );
+  });
+});
+
+test("options: mode notes start hidden before updateModeUI runs", () => {
+  const doc = page();
+  const notes = doc.querySelectorAll("[data-mode-note]");
+  assert.equal(notes.length, 2);
+  for (const note of notes) {
+    assert.equal(note.hidden, true, "no flash of both notices on first paint");
+  }
+});
+
 test("options: conditional cards toggle the hidden attribute, never inline display", () => {
   const doc = page();
   const proxyFields = doc.getElementById("proxy-fields");
