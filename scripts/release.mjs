@@ -77,6 +77,22 @@ function git(...args) {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 }
 
+/**
+ * Set the package version and sync the lock file. npm owns both files;
+ * a hand edit to package-lock.json would drift from npm's own output.
+ */
+export function syncPackageVersion(version, cwd = ROOT) {
+  execFileSync("npm", ["pkg", "set", `version=${version}`], {
+    cwd,
+    encoding: "utf8",
+  });
+  execFileSync(
+    "npm",
+    ["install", "--package-lock-only", "--no-audit", "--no-fund"],
+    { cwd, encoding: "utf8" },
+  );
+}
+
 function gitStatusPorcelain() {
   return execFileSync("git", ["status", "--porcelain"], {
     cwd: ROOT,
