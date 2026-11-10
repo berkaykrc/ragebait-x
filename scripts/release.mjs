@@ -155,7 +155,7 @@ function main() {
 
   process.stdout.write(
     `\n  ${current} -> ${next}   (tag ${tag})\n\n` +
-      `  1. edit "version" in manifest.mv2.json\n` +
+      `  1. edit the version in manifest.mv2.json, package.json and package-lock.json\n` +
       `  2. commit + tag as "${tag}"\n` +
       `  3. push, which triggers CI to sign and attach the .xpi\n\n`,
   );
@@ -165,8 +165,9 @@ function main() {
     process.exit(1);
   }
 
+  syncPackageVersion(next);
   writeManifestVersion(next);
-  git("add", "manifest.mv2.json");
+  git("add", "manifest.mv2.json", "package.json", "package-lock.json");
   git("commit", "-m", `release: ${tag}`);
   git("tag", tag);
   git("push", "origin", "HEAD");
