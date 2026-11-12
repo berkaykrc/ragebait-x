@@ -394,11 +394,11 @@ Incident response checklist:
    `web-ext-artifacts/ragebait_detector-<version>.zip` — the `{name}-{version}.zip`
    template with the manifest name lowercased and non-alphanumerics replaced
    with `_`).
-4. `npm run package:mv3` packages `dist-mv3` and copies the result to the
-   stable asset name `web-ext-artifacts/ragebait-detector-mv3.zip`. This is the
-   Chrome distributable: unpacked/manual install only, no Chrome Web Store
-   publish. The store signs the CRX on upload, so no local signing step
-   exists.
+4. `npm run package:mv3` packages `dist-mv3` and writes the stable asset name
+   `web-ext-artifacts/ragebait-detector-mv3.zip` directly (`--filename`), so it
+   never overwrites the Firefox zip. This is the Chrome distributable:
+   unpacked/manual install only, no Chrome Web Store publish. The store signs
+   the CRX on upload, so no local signing step exists.
 5. Inspect both zips before release:
    `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip` and
    `unzip -l web-ext-artifacts/ragebait-detector-mv3.zip`. The member list must

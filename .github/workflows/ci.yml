@@ -40,8 +40,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Exercises the release-only packaging path on every push. Without this,
+      # its first run would be the release job, after the tag already exists.
+      - name: Package Chrome MV3
+        run: npm run package:mv3
+
       # Fail the build before anything else runs if credential-shaped values
-      # reached dist-mv2/ or dist-mv3/.
+      # reached dist-mv2/, dist-mv3/ or the packaged Chrome zip.
       - name: Artifact secret scan
         run: npm run check:artifacts
 

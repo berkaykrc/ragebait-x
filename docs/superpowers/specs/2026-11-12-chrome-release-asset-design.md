@@ -50,8 +50,8 @@ to drift from MV2.
 
 - Use `web-ext build` for the MV3 zip. It is already installed and already
   drives the MV2 package step.
-- Copy the versioned web-ext output to the stable asset name
-  `ragebait-detector-mv3.zip`, so the download URL never changes between
-  releases.
+- Pass `--filename ragebait-detector-mv3.zip` to `web-ext build`. It writes the
+  stable asset name directly, avoiding a copy step and a collision with the
+  Firefox zip, which shares the default `{name}-{version}.zip` template.
 - Keep `manifest.mv2.json` as the version of record. The script reads it and
   writes that version into both manifests.
