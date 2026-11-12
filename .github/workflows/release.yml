@@ -9,8 +9,8 @@
 #
 #   2. Run workflow (on demand, no local commands):
 #        Actions tab -> release -> Run workflow -> type the version
-#      CI bumps manifest.mv2.json, commits, tags, pushes, signs, and creates
-#      the Release. Nothing to type in a terminal.
+#      CI bumps both extension manifests, commits, tags, pushes, signs, and
+#      creates the Release. Nothing to type in a terminal.
 #
 # Both paths converge on the same job below. Only the version-preparation step
 # differs; everything after it is identical.
@@ -105,15 +105,17 @@ jobs:
             exit 1
           fi
 
-          node -e '
-            const fs = require("fs");
-            const p = "manifest.mv2.json";
-            const src = fs.readFileSync(p, "utf8");
-            fs.writeFileSync(
-              p,
-              src.replace(/("version"\s*:\s*)"[^"]*"/, (_m, pre) => `${pre}"${process.env.VERSION}"`),
-            );
-          '
+          for manifest in manifest.mv2.json manifest.mv3.json; do
+            MANIFEST="$manifest" node -e '
+              const fs = require("fs");
+              const p = process.env.MANIFEST;
+              const src = fs.readFileSync(p, "utf8");
+              fs.writeFileSync(
+                p,
+                src.replace(/("version"\s*:\s*)"[^"]*"/, (_m, pre) => `${pre}"${process.env.VERSION}"`),
+              );
+            '
+          done
 
           npm pkg set version="${VERSION}"
           npm install --package-lock-only --no-audit --no-fund
@@ -126,10 +128,10 @@ jobs:
           # "nothing to commit" in that case, which under `set -e` would fail
           # the whole run. Commit only when there is genuinely something to
           # commit, and tag either way.
-          if git diff --quiet -- manifest.mv2.json package.json package-lock.json; then
+          if git diff --quiet -- manifest.mv2.json manifest.mv3.json package.json package-lock.json; then
             echo "files are already at ${VERSION}; tagging without a commit"
           else
-            git add manifest.mv2.json package.json package-lock.json
+            git add manifest.mv2.json manifest.mv3.json package.json package-lock.json
             git commit -m "release: ${tag}"
           fi
 
@@ -139,8 +141,9 @@ jobs:
           echo "pushed ${tag}"
 
       # Catches the one mistake worth catching on the tag path: tagging a new
-      # version while forgetting to bump "version" in manifest.mv2.json. AMO
-      # matches versions by that field, so the tag would be a lie.
+      # version while forgetting to bump "version" in the manifests. AMO and
+      # the Chrome Web Store match versions by that field, so the tag would
+      # be a lie.
       #
       # It deliberately does NOT try to detect an already-signed version on the
       # tag path -- git tags and AMO versions are separate histories, and local
@@ -149,18 +152,20 @@ jobs:
       #
       # RELEASE_TAG holds the tag the button path pushed; the tag path leaves
       # it unset and falls back to GITHUB_REF_NAME.
-      - name: Assert the tag matches the manifest version
+      - name: Assert the tag matches both manifest versions
         run: |
           set -euo pipefail
           tag_name="${RELEASE_TAG:-${GITHUB_REF_NAME}}"
-          current="$(node -p 'JSON.parse(require("fs").readFileSync("manifest.mv2.json","utf8")).version')"
           expected="${tag_name#v}"
-          if [ "$current" != "$expected" ]; then
-            echo "::error::tag ${tag_name} does not match manifest version ${current}"
-            echo "Bump \"version\" in manifest.mv2.json, or use the Run workflow button."
-            exit 1
-          fi
-          echo "tag ${tag_name} matches manifest version ${current}"
+          for manifest in manifest.mv2.json manifest.mv3.json; do
+            current="$(MANIFEST="$manifest" node -p 'JSON.parse(require("fs").readFileSync(process.env.MANIFEST,"utf8")).version')"
+            if [ "$current" != "$expected" ]; then
+              echo "::error::tag ${tag_name} does not match ${manifest} version ${current}"
+              echo "Bump \"version\" in ${manifest}, or use the Run workflow button."
+              exit 1
+            fi
+            echo "${manifest} version ${current} matches tag ${tag_name}"
+          done
 
       - name: Build
         run: npm run build

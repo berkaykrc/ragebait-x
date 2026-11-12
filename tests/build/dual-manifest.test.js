@@ -38,3 +38,13 @@ test("dual build emits the MV2 and MV3 manifest contracts", async () => {
   );
   assert.equal(mv3.update_url, mv2.update_url);
 });
+
+test("both manifests and package.json carry the same version", async () => {
+  const [mv2, mv3, pkg] = await Promise.all([
+    readManifest("mv2"),
+    readManifest("mv3"),
+    readFile(path.join(rootDir, "package.json"), "utf8").then(JSON.parse),
+  ]);
+  assert.equal(mv3.version, mv2.version);
+  assert.equal(pkg.version, mv2.version);
+});

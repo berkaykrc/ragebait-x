@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST = path.join(ROOT, "manifest.mv2.json");
+const MANIFESTS = ["manifest.mv2.json", "manifest.mv3.json"];
 
 const BUMP_KINDS = ["patch", "minor", "major"];
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
@@ -60,17 +61,22 @@ function readManifest() {
 /**
  * Rewrite only the "version" value, preserving the file's existing layout.
  * JSON.parse/stringify would reflow the whole file and bury the real change.
+ * Both extension manifests carry a version, and they must never drift: the
+ * Chrome and Firefox builds share one release number.
  */
-function writeManifestVersion(version) {
-  const source = readFileSync(MANIFEST, "utf8");
-  const updated = source.replace(
-    /("version"\s*:\s*)"[^"]*"/,
-    (_m, prefix) => `${prefix}"${version}"`,
-  );
-  if (updated === source) {
-    throw new Error(`could not find a "version" field in ${MANIFEST}`);
+export function writeManifestVersion(version, root = ROOT) {
+  for (const name of MANIFESTS) {
+    const file = path.join(root, name);
+    const source = readFileSync(file, "utf8");
+    const updated = source.replace(
+      /("version"\s*:\s*)"[^"]*"/,
+      (_m, prefix) => `${prefix}"${version}"`,
+    );
+    if (updated === source) {
+      throw new Error(`could not find a "version" field in ${name}`);
+    }
+    writeFileSync(file, updated, "utf8");
   }
-  writeFileSync(MANIFEST, updated, "utf8");
 }
 
 function git(...args) {
@@ -155,7 +161,7 @@ function main() {
 
   process.stdout.write(
     `\n  ${current} -> ${next}   (tag ${tag})\n\n` +
-      `  1. edit the version in manifest.mv2.json, package.json and package-lock.json\n` +
+      `  1. edit the version in manifest.mv2.json, manifest.mv3.json, package.json and package-lock.json\n` +
       `  2. commit + tag as "${tag}"\n` +
       `  3. push, which triggers CI to sign and attach the .xpi\n\n`,
   );
@@ -167,7 +173,13 @@ function main() {
 
   syncPackageVersion(next);
   writeManifestVersion(next);
-  git("add", "manifest.mv2.json", "package.json", "package-lock.json");
+  git(
+    "add",
+    "manifest.mv2.json",
+    "manifest.mv3.json",
+    "package.json",
+    "package-lock.json",
+  );
   git("commit", "-m", `release: ${tag}`);
   git("tag", tag);
   git("push", "origin", "HEAD");

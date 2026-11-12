@@ -8,6 +8,7 @@ import {
   isValidVersion,
   nextVersion,
   syncPackageVersion,
+  writeManifestVersion,
 } from "../../scripts/release.mjs";
 
 test("isValidVersion accepts only x.y.z", () => {
@@ -70,6 +71,33 @@ test("syncPackageVersion updates package.json and package-lock.json", async () =
     assert.equal(pkg.version, "0.1.2");
     assert.equal(lock.version, "0.1.2");
     assert.equal(lock.packages[""].version, "0.1.2");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("writeManifestVersion updates both manifests", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "ragebait-release-"));
+  try {
+    await writeFile(
+      path.join(dir, "manifest.mv2.json"),
+      `${JSON.stringify({ version: "0.1.1" }, null, 2)}\n`,
+    );
+    await writeFile(
+      path.join(dir, "manifest.mv3.json"),
+      `${JSON.stringify({ version: "0.1.1" }, null, 2)}\n`,
+    );
+
+    writeManifestVersion("0.1.2", dir);
+
+    const mv2 = JSON.parse(
+      await readFile(path.join(dir, "manifest.mv2.json"), "utf8"),
+    );
+    const mv3 = JSON.parse(
+      await readFile(path.join(dir, "manifest.mv3.json"), "utf8"),
+    );
+    assert.equal(mv2.version, "0.1.2");
+    assert.equal(mv3.version, "0.1.2");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
