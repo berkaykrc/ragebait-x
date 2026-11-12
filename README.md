@@ -4,8 +4,9 @@
   <img src="assets/mark.svg" alt="Ragebait Detector" width="48" height="48">
 </a>
 
-A Firefox extension (MV2) that shows a ragebait / engagement-bait band inside X
-(Twitter) hovercards, based on the target account's replies.
+A browser extension for X (Twitter) hovercards — Firefox (MV2) and Chrome (MV3)
+— that shows a ragebait / engagement-bait band based on the target account's
+replies.
 
 The extension supports local heuristic scoring, a consent-gated hosted Worker
 proxy, BYOK AI mode, and self-hosted Worker deployments. The hosted proxy URL is
@@ -22,10 +23,13 @@ request came from an official or unmodified client.
 ## Status
 
 - Latest release: [Releases](../../releases/latest). The version of record is
-  `version` in `manifest.mv2.json`, which the release workflow bumps.
+  `version` in `manifest.mv2.json`; the release script and the release workflow
+  bump it and keep `package.json` and `package-lock.json` in sync with it.
 - Modes: heuristic, proxy, and BYOK (`MODEL_VERSION = "h1"`,
   `FEATURE_VERSION = "f1"`)
-- Browser: Firefox (MV2). Chrome/MV3 is post-v1 and unverified.
+- Browser: Firefox (MV2) and Chrome (MV3) — `npm run build` emits both roots.
+  Firefox releases are signed via the release workflow; Chrome MV3 is loaded
+  unpacked, with no store or publish step yet.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
 
 ## How it works
@@ -101,11 +105,13 @@ npm install
 npm run build
 ```
 
-Then load `dist-mv2/` as a temporary add-on:
+Then load the root for your browser:
 
-1. Open Firefox Nightly, Developer Edition, or an unbranded build.
-2. Go to `about:debugging` -> "This Firefox" -> "Load Temporary Add-on".
-3. Select `dist-mv2/manifest.json`.
+1. Firefox: open Nightly, Developer Edition, or an unbranded build, then
+   `about:debugging` -> "This Firefox" -> "Load Temporary Add-on" ->
+   `dist-mv2/manifest.json`.
+2. Chrome: `chrome://extensions` -> enable Developer mode -> "Load unpacked" ->
+   `dist-mv3/`.
 
 Unsigned builds run on Nightly / Developer Edition / unbranded builds only. That
 is the local development path: `dist-mv2/manifest.json` is loaded as a temporary
@@ -125,17 +131,61 @@ in the manifest).
 - Heuristic mode keeps AI processing local. Proxy and BYOK modes require the
   data-handling notice to be accepted before sending feature state and sampled
   reply text to the selected endpoint.
+- In proxy or BYOK mode, reply snippets have third-party `@username` handles
+  scrubbed to `@…`, full `http(s)://` URLs replaced with `[link]`, and
+  email-like addresses best-effort replaced with `[email]` before transmission.
+  Decision models cannot browse links, so URLs cost tokens and contribute
+  nothing; `@mentions` and email-like addresses add no signal either. This
+  minimises token usage on the inference API and best-effort reduces broadcast
+  of third-party handles and email-like addresses, while preserving quoted tweet
+  contents, linguistic cues, and conversation context intact.
 - Proxy mode sends `{ state, installToken }` to `/analyze`. `state` contains the
   handle, computed feature object, and at most 12 reply snippets truncated to
   400 characters each. The Worker sends the normalized state plus four binary
   questions and one three-level intensity question to Clef 27B, with Jev as a
   fallback. BYOK mode sends the same state to the user's configured endpoint
   with the user's API key. No API keys are bundled in the extension.
-- Results are stored in `browser.storage.local` on the user's machine; there is
-  no extension user account. Proxy responses may be shared through the Worker's
-  48-hour KV cache. A model miss consumes one daily quota unit per install
-  token; cached responses do not. These identifiers can be forged and quota
-  protection is abuse resistance, not identity verification.
+- **Install Token Lifecycle:** The installation token is a locally generated
+  anonymous identifier (16 random crypto bytes stored in
+  `browser.storage.local`). It is stored with **no rotation and no expiry**: one
+  token per install, kept until storage is cleared or the extension is
+  reinstalled. The _usage counter_ resets after each 200-per-day window; the
+  token itself does not. The token contains no personal or device data and
+  cannot identify a person. The hosted proxy sees the same token on every proxy
+  request, so it can count that install's daily usage and block quota abuse. The
+  token is sent only to the hosted proxy; it is not sent to any other website.
+  It is intentionally **not exposed for manual reset or rotation**: offering a
+  reset would let anyone mint a fresh token and bypass the 200/day limit,
+  abusing the hosted proxy. This purpose is shown in the options page quota card
+  (including as a tooltip).
+- **Mozilla Data Collection Declaration (`data_collection_permissions`):** This
+  is a _declaration of what is collected_, not a runtime permission. It is
+  separate from host permissions (`https://x.com/*`, `https://twitter.com/*`,
+  `https://api.fxtwitter.com/*`, the proxy), which grant network access.
+  - `websiteActivity` (Required): Core functionality detects profile hovers on X
+    and, in all modes, requests that account's public reply metadata from
+    FxTwitter (`api.fxtwitter.com`) using the hovered handle.
+  - `websiteContent` (Optional): In default Heuristic mode, tweet reply content
+    never leaves the device. Only when the user voluntarily enables AI mode and
+    accepts the consent gate are reply snippets (best-effort scrubbed) sent to
+    the selected AI endpoint for scoring; this is declared as optional,
+    user-consented collection under Mozilla AMO policy rather than as required.
+  - The install token is a random anonymous identifier, not personal data. It is
+    sent only to the hosted proxy for quota accounting and is described in the
+    install-token lifecycle and options notice above.
+- **Data Minimisation & Local Storage:**
+  - Analysis results in `browser.storage.local` have a bounded 7-day TTL and are
+    physically deleted on read once expired; a background boot sweep also
+    removes expired entries for handles that are never re-hovered.
+  - Historical daily quota counters (`stats:YYYY-MM-DD`) are automatically
+    pruned after 7 days on background initialization.
+  - Options page is hardened with a strict Content Security Policy
+    (`default-src 'none'`) and `Referrer-Policy: no-referrer`. Extension pages
+    are served as `moz-extension://`/`chrome-extension://` documents, so no HTTP
+    response headers can be sent; these `<meta>` directives are the only
+    available enforcement. A `Permissions-Policy` meta tag is deliberately not
+    used: the specification defines it as a response header only, so a meta tag
+    has no effect.
 - Results are shown only to the hovering user. There are no public lists.
 
 Self-hosting lets an operator deploy the open Worker source with their own
@@ -190,8 +240,8 @@ Notes for contributors:
 - **Phase 5 - Deep mode (deferred)**: `UserByScreenName` /
   `UserRepliesTimeline`, transaction signing, DOM enrichment.
 
-Out of scope for v1: Chrome support, mobile Firefox, deep mode, a third AI tier,
-target-account size asymmetry, bundled local model, multi-device sync.
+Out of scope for v1: mobile Firefox, deep mode, a third AI tier, target-account
+size asymmetry, bundled local model, multi-device sync.
 
 ## License
 

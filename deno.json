@@ -34,7 +34,8 @@
       "node_modules",
       ".superpowers",
       ".taste-skill",
-      "docs"
+      "docs",
+      "worker/.agents"
     ]
   }
 }

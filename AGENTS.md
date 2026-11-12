@@ -1,16 +1,8 @@
 # ragebait-detector
 
-Firefox MV2 extension. Vanilla JS ES modules, no TypeScript. Node pinned by
-`.nvmrc` (26.13.0); language tooling is Deno.
-
-## Node is already on PATH
-
-`node` and `npm` resolve to `~/.nvm/versions/node/v26.13.0/bin/*` on this
-machine. **Do not prefix commands with `source ~/.nvm/nvm.sh` or `nvm use` — it
-is redundant, it hides errors behind `2>/dev/null`, and it bloats every
-command.** Just run `npm test`. `.nvmrc` exists for human shells that go through
-nvm themselves; if the pinned version is not installed yet, run `nvm install`
-once, then use it.
+Browser extension for X (Twitter) hovercards, dual-target: Firefox MV2
+(`dist-mv2/`) and Chrome MV3 (`dist-mv3/`). Vanilla JS ES modules, no
+TypeScript. Node pinned by `.nvmrc` (26.13.0); language tooling is Deno.
 
 ## Commands
 
@@ -22,17 +14,18 @@ npm test          # one suite only
 `check` runs `lint:js` (deno lint) → `fmt:check` (deno fmt) → `build` → `lint`
 (web-ext) → `test`. Single test: `node --test tests/shared/security.test.js`.
 
-**`npm test` requires `npm run build` first.** Two tests read `dist-mv2/` off
-disk and fail with ENOENT without it. That is not a code bug.
+**`npm test` requires a prior `npm run build`.** Two test files read the built
+roots off disk — `tests/smoke.test.js` reads `dist-mv2/manifest.json`, and
+`tests/build/dual-manifest.test.js` reads both `dist-mv2/manifest.json` and
+`dist-mv3/manifest.json` — and fail with ENOENT without it. That is not a code
+bug. `npm run check` builds before it tests, so its artifacts are always fresh.
 
-**Do not "fix" the test script to `node --test tests/`.** On Node 22 a bare
-directory argument is loaded as a module and fails
-(`Cannot find module '.../tests'`, exit 1). The script uses globs for that
-reason.
-
-The same trap applies to direct invocations: `node --test tests/` or
-`node --test worker/tests/` fails the same way (a single wrapper failure instead
-of running the suites). Use the glob form:
+**Bare directories work on the pinned Node** (verified on v26.13.0:
+`node --test tests/` and `node --test worker/tests/` run their suites, same
+counts as the globs). The `test` script still uses globs because they are
+explicit and portable — on Node 22 a bare directory argument is loaded as a
+module and fails (`Cannot find module '.../tests'`, exit 1). Prefer the glob
+form:
 
 ```
 node --test 'tests/**/*.test.js'
@@ -41,7 +34,7 @@ node --test tests/shared/security.test.js   # single suite (see above)
 ```
 
 To run a subset of suites, quote a glob — e.g.
-`node --test 'tests/shared/*.test.js'` — never the bare directory.
+`node --test 'tests/shared/*.test.js'`.
 
 ## How it runs
 
@@ -56,8 +49,17 @@ src/content.js ──injects──► src/page/index.js
             src/shared/messaging.js  ← the only bridge
                     │ browser.runtime.sendMessage
                     ▼
-              src/background/        (plan Task 8 — not built yet)
+              src/background/index.js
+              cache → FxTwitter → features → compose → quota → AI (proxy/BYOK)
+                    │ makeScoreResponse
+                    ▼
+              back through the same bridge to the page
 ```
+
+`npm run build` bundles content, page, background and options into BOTH roots:
+`dist-mv2/` (Firefox, background as a script) and `dist-mv3/` (Chrome,
+background as a service worker). Each root gets its own `manifest.json` copied
+from `manifest.mv2.json` / `manifest.mv3.json`.
 
 `src/shared/security.js` holds the trust gate and is imported by _both_ sides.
 It lives in `shared/` for that reason and must never be bundled into `page.js` —
@@ -73,6 +75,14 @@ authentication — anything on the page can read it. See plan §3 and decision D
 
 ## Load it
 
-`npm run build`, then `about:debugging` → This Firefox → Load Temporary Add-on →
-`dist-mv2/manifest.json`. Unsigned works on Nightly / Developer Edition /
-unbranded only; release Firefox needs a signed `.xpi` (plan Task 10.5).
+`npm run build` emits both roots, then load the one for your browser:
+
+- Firefox: `about:debugging` → This Firefox → Load Temporary Add-on →
+  `dist-mv2/manifest.json`.
+- Chrome: `chrome://extensions` → enable Developer mode → Load unpacked →
+  `dist-mv3/`.
+
+Unsigned Firefox builds work on Nightly / Developer Edition / unbranded only;
+release Firefox needs the signed `.xpi` that the release workflow attaches to
+the GitHub Release (`npm run release` pushes a tag; CI signs with AMO). Chrome
+MV3 is loaded unpacked for now — there is no store or publish step yet.

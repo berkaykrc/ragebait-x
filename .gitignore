@@ -10,3 +10,4 @@ dist-mv2/
 dist-mv3/
 worker/wrangler.toml
 data/
+.vscode/
