@@ -30,13 +30,11 @@ const ALLOWED_VARS_KEYS = [
 // of `worker/wrangler.toml` and `worker/src` ONLY: the
 // scripts/check-artifacts.mjs scan also names the AMO signing credentials
 // (AMO_KEY/AMO_SECRET), which are excluded here because they are a
-// release/signing-shell concern and never enter the deploy config or the
+// release concern and never enter the deploy config or the
 // Worker source.
 const SECRET_VAR_NAMES = [
   "CLOUDFLARE_API_TOKEN",
-  "CLEF_API_KEY",
   "TYPESAFE_API_KEY",
-  "JEV_API_KEY",
   "INSTALL_TOKEN_SECRET",
 ];
 
@@ -152,7 +150,7 @@ test("task5: every deploy environment declares its own CACHE_KV id", () => {
   );
   const byEnv = new Map(blocks.map((b) => [b.env ?? "top", b]));
 
-  for (const deployEnv of ["top", "production", "staging"]) {
+  for (const deployEnv of ["production", "staging"]) {
     const block = byEnv.get(deployEnv);
     assert.ok(
       block,
@@ -166,31 +164,12 @@ test("task5: every deploy environment declares its own CACHE_KV id", () => {
   }
   assert.equal(
     blocks.length,
-    3,
-    "exactly one CACHE_KV namespace per deploy environment (top, production, staging)",
+    2,
+    "exactly one CACHE_KV namespace per deploy environment (production, staging); no top-level default",
   );
 });
 
-test("task5: production environment reuses the top-level (production) KV namespace", () => {
-  const toml = readWranglerToml();
-  const blocks = parseKvNamespaces(toml).filter((b) =>
-    b.binding === "CACHE_KV"
-  );
-  const top = blocks.find((b) => b.env === null);
-  const production = blocks.find((b) => b.env === "production");
-
-  assert.ok(
-    top && production,
-    "top-level and [env.production] namespaces exist",
-  );
-  assert.equal(
-    production.id,
-    top.id,
-    "--env production must deploy against the same data as the top-level config",
-  );
-});
-
-test("task5: staging KV namespace differs from production and is a labelled placeholder", () => {
+test("task5: staging KV namespace differs from production and is a real id", () => {
   const toml = readWranglerToml();
   const blocks = parseKvNamespaces(toml).filter((b) =>
     b.binding === "CACHE_KV"
@@ -204,16 +183,32 @@ test("task5: staging KV namespace differs from production and is a labelled plac
     production.id,
     "staging must never share production's KV namespace",
   );
-  // The staging id is deliberately NOT a real namespace id: inventing one in
-  // the repo would let a careless deploy write to unknown infrastructure.
+  // Staging must use a real namespace ID (32 hex chars) created via
+  // `npx wrangler kv namespace create CACHE_KV --env staging`. A placeholder
+  // or invented value here would let a careless deploy write to unknown
+  // infrastructure; the format check fails fast in that case.
   assert.match(
     staging.id,
-    /REPLACE_WITH_STAGING/,
-    "the staging id stays an operator placeholder until a staging namespace is created",
+    /^[0-9a-f]{32}$/i,
+    "the staging id must be a real KV namespace id (32 hex chars) created with wrangler, not a placeholder",
   );
 });
 
-test("task5: all three environments declare a [vars] table", () => {
+test("task5: no top-level Worker config — only named environments are deployable", () => {
+  const toml = readWranglerToml();
+  const prefix = toml.split(/^\[env\./m)[0];
+  for (const key of ["name", "main", "compatibility_date"]) {
+    assert.doesNotMatch(
+      prefix,
+      new RegExp(`^${key}\\s*=`, "m"),
+      `top-level ${key} must not exist; a bare wrangler deploy must fail (deploy with --env production|staging)`,
+    );
+  }
+  assert.match(toml, /^\[env\.production\]/m, "production env must exist");
+  assert.match(toml, /^\[env\.staging\]/m, "staging env must exist");
+});
+
+test("task5: all deploy environments declare a [vars] table", () => {
   const toml = readWranglerToml();
   const tables = parseVarsTables(toml);
 
@@ -221,7 +216,7 @@ test("task5: all three environments declare a [vars] table", () => {
   // staging/production vars block would leave that environment on code
   // defaults (proxyEnabled false etc.) with a green gate. Every deploy
   // environment must declare the full public table explicitly.
-  for (const deployEnv of ["top", "production", "staging"]) {
+  for (const deployEnv of ["production", "staging"]) {
     assert.ok(
       tables.has(deployEnv),
       `wrangler.toml must declare a [vars] table for the ${deployEnv} environment`,

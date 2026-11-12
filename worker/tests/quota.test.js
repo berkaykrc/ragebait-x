@@ -522,7 +522,7 @@ function analyzeRequest({ headers, state = VALID_STATE, installToken }) {
 
 const QUOTA_ENV = {
   CLOUDFLARE_ACCOUNT_ID: "acct-test",
-  CLEF_API_KEY: "k",
+  CLOUDFLARE_API_TOKEN: "k",
 };
 
 test("router: same X-account identity shares one bucket across reinstall and keeps the raw X ID out of KV", async () => {

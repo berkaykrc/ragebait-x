@@ -246,7 +246,6 @@ export function invalidRequestResponse() {
 export async function callClef(payload, env, fetchImpl) {
   const apiToken = (typeof env?.CLOUDFLARE_API_TOKEN === "string" &&
     env.CLOUDFLARE_API_TOKEN) ||
-    (typeof env?.CLEF_API_KEY === "string" && env.CLEF_API_KEY) ||
     "";
 
   const accountId = typeof env?.CLOUDFLARE_ACCOUNT_ID === "string"
@@ -343,15 +342,17 @@ export async function callJev(payload, env, fetchImpl) {
     : "jev-latest";
 
   const apiKey =
-    (typeof env?.TYPESAFE_API_KEY === "string" && env.TYPESAFE_API_KEY) ||
-    (typeof env?.JEV_API_KEY === "string" && env.JEV_API_KEY) || "";
+    (typeof env?.TYPESAFE_API_KEY === "string" && env.TYPESAFE_API_KEY) || "";
+
+  if (!apiKey) {
+    console.warn("jev: misconfigured", { hasApiKey: false });
+    return null;
+  }
 
   const headers = {
     "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
   };
-  if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
 
   try {
     const res = await fetchImpl(endpoint, {

@@ -1,0 +1,69 @@
+# Template for operators who deploy their own copy of this Worker.
+#
+# Copy this file to `wrangler.toml` and replace every REPLACE_WITH_...
+# placeholder and every `my-*-worker` name with your own values. The
+# repository's own `wrangler.toml` already holds this project's real namespace
+# IDs; do not reuse them for a different Cloudflare account. See
+# docs/release.md.
+
+# Only named environments are deployable. There is deliberately no top-level
+# Worker: `name`, `main`, and `compatibility_date` live inside each [env.*]
+# block. A bare `npx wrangler deploy` has no entry point and fails instead of
+# overwriting a Worker. Always deploy explicitly:
+#   npx wrangler deploy --env production
+#   npx wrangler deploy --env staging
+
+# KV namespace for shared 48h analysis cache and daily quota tracking.
+# Each env declares its own CACHE_KV. Never share a KV namespace or secret
+# across environments, because staging traffic would pollute production
+# quota/cache state and a staging leak would compromise production.
+# This Worker is a public optional proxy. Its URL is discoverable by design;
+# CORS and install tokens are not authentication or proof of an official client.
+# Open-source code documents processing behavior. API keys and deployment
+# secrets must only live in the Worker environment, never in this file, the
+# source tree, fixtures or build output:
+# - CLOUDFLARE_API_TOKEN (Clef via Workers AI)
+# - TYPESAFE_API_KEY
+# - INSTALL_TOKEN_SECRET (quota/abuse control only, not client authentication)
+# Secrets are set PER ENVIRONMENT with `npx wrangler secret put <NAME> --env
+# staging` (or `--env production`); a secret set on one env is NOT visible
+# to the other env. CLOUDFLARE_ACCOUNT_ID is a public account identifier,
+# not a secret.
+
+[env.production]
+# Replace with your Worker name. Letters, digits, and dashes only.
+name = "my-production-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE_KV"
+# Create it with: npx wrangler kv namespace create CACHE_KV --env production
+id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
+
+[env.production.vars]
+PROXY_ENABLED = "true"
+BAND_HIGH = "0.75"
+BAND_MEDIUM = "0.45"
+SHOW_NUMBER = "false"
+CLOUDFLARE_ACCOUNT_ID = "REPLACE_WITH_YOUR_CLOUDFLARE_ACCOUNT_ID"
+
+[env.staging]
+# Replace with your staging Worker name. Letters, digits, and dashes only.
+name = "my-staging-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[env.staging.kv_namespaces]]
+binding = "CACHE_KV"
+# Create it with: npx wrangler kv namespace create CACHE_KV --env staging
+id = "REPLACE_WITH_STAGING_KV_NAMESPACE_ID"
+
+[env.staging.vars]
+# Staging proxy disabled by default: a staging worker should not serve live
+# extension traffic until an operator deliberately flips it on.
+PROXY_ENABLED = "false"
+BAND_HIGH = "0.75"
+BAND_MEDIUM = "0.45"
+SHOW_NUMBER = "false"
+CLOUDFLARE_ACCOUNT_ID = "REPLACE_WITH_YOUR_CLOUDFLARE_ACCOUNT_ID"

@@ -177,7 +177,6 @@ test("task5: GET /config output is public-only even with secrets in env", async 
   const SECRETS = [
     ["CLOUDFLARE_API_TOKEN", "cf-secret-do-not-serve-1234567890"],
     ["TYPESAFE_API_KEY", "typesafe-secret-do-not-serve-12345678"],
-    ["JEV_API_KEY", "jev-secret-do-not-serve-1234567890"],
     ["INSTALL_TOKEN_SECRET", "hmac-secret-do-not-serve-123456789"],
     ["QUOTA_KILL_SWITCH", "pause-flag-42"],
   ];

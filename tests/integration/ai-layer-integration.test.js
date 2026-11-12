@@ -66,7 +66,7 @@ test("integration: end-to-end AI layer (Extension + Worker proxy + Model + Cache
       {
         CACHE_KV: kv,
         CLOUDFLARE_ACCOUNT_ID: "acct-test",
-        CLEF_API_KEY: "test-clef-key",
+        CLOUDFLARE_API_TOKEN: "test-clef-key",
       },
       null,
       upstreamFetch,

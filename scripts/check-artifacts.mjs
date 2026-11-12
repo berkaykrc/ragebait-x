@@ -25,7 +25,7 @@ const SECRET_PATTERNS = [
   {
     name: "known deployment secret assignment",
     pattern:
-      /\b(?:CLOUDFLARE_API_TOKEN|CLEF_API_KEY|TYPESAFE_API_KEY|JEV_API_KEY|INSTALL_TOKEN_SECRET|AMO_KEY|AMO_SECRET)\b\s*[:=]\s*["'`]?[^\s"'`]{16,}["'`]?/,
+      /(?:"\s*)?\b(?:CLOUDFLARE_API_TOKEN|TYPESAFE_API_KEY|INSTALL_TOKEN_SECRET|AMO_KEY|AMO_SECRET)\b(?:"\s*)?\s*[:=]\s*["'`]?[^\s"'`]{16,}["'`]?/i,
   },
 ];
 

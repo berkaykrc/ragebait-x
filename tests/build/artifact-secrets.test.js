@@ -38,6 +38,13 @@ test("artifact scanner rejects known deployment secret names", () => {
   assert.deepEqual(matches, ["known deployment secret assignment"]);
 });
 
+test("artifact scanner rejects snake_case and JSON-keyed secret assignments", () => {
+  const matches = findSecretLikeValues(
+    'const cfg = { "cloudflare_api_token": "abcdefghijklmnop" };',
+  );
+  assert.deepEqual(matches, ["known deployment secret assignment"]);
+});
+
 test("artifact directory scan reports the file and finding", async () => {
   const directory = await mkdtemp(
     path.join(os.tmpdir(), "ragebait-artifacts-"),

@@ -91,7 +91,11 @@ test("router: POST /analyze consumes quota on miss and returns x-quota-remaining
 
   const res = await worker.fetch(
     req,
-    { CACHE_KV: kv, CLOUDFLARE_ACCOUNT_ID: "acct-test", CLEF_API_KEY: "k" },
+    {
+      CACHE_KV: kv,
+      CLOUDFLARE_ACCOUNT_ID: "acct-test",
+      CLOUDFLARE_API_TOKEN: "k",
+    },
     null,
     mockFetch,
   );
@@ -201,7 +205,11 @@ test("router: POST /analyze with body-only installToken works (documented fallba
 
   const res = await worker.fetch(
     req,
-    { CACHE_KV: kv, CLOUDFLARE_ACCOUNT_ID: "acct-test", CLEF_API_KEY: "k" },
+    {
+      CACHE_KV: kv,
+      CLOUDFLARE_ACCOUNT_ID: "acct-test",
+      CLOUDFLARE_API_TOKEN: "k",
+    },
     null,
     mockModelFetch(counter),
   );
@@ -230,7 +238,7 @@ test("router: arbitrary token accepted even with INSTALL_TOKEN_SECRET set — th
     {
       CACHE_KV: kv,
       CLOUDFLARE_ACCOUNT_ID: "acct-test",
-      CLEF_API_KEY: "k",
+      CLOUDFLARE_API_TOKEN: "k",
       // The operator must never be able to "fix" abuse by turning this on:
       // the extension sends no X-Install-Signature, so enabling it as auth
       // would break every legitimate request and protect nothing.
@@ -276,7 +284,11 @@ test("router: token rotation gets a fresh bucket (documented limitation of per-i
   });
   const resB = await worker.fetch(
     reqB,
-    { CACHE_KV: kv, CLOUDFLARE_ACCOUNT_ID: "acct-test", CLEF_API_KEY: "k" },
+    {
+      CACHE_KV: kv,
+      CLOUDFLARE_ACCOUNT_ID: "acct-test",
+      CLOUDFLARE_API_TOKEN: "k",
+    },
     null,
     mockModelFetch(counter),
   );
@@ -320,7 +332,7 @@ test("router: missing CACHE_KV fails closed with bounded 503 quota_unavailable, 
 
   const res = await worker.fetch(
     req,
-    { CLOUDFLARE_ACCOUNT_ID: "acct-test", CLEF_API_KEY: "k" },
+    { CLOUDFLARE_ACCOUNT_ID: "acct-test", CLOUDFLARE_API_TOKEN: "k" },
     null,
     mockModelFetch(counter),
   );
@@ -355,7 +367,7 @@ test("router: quota store failure fails closed with bounded 503 quota_unavailabl
     {
       CACHE_KV: brokenKV,
       CLOUDFLARE_ACCOUNT_ID: "acct-test",
-      CLEF_API_KEY: "k",
+      CLOUDFLARE_API_TOKEN: "k",
     },
     null,
     mockModelFetch(counter),
@@ -602,7 +614,7 @@ test("task4: cache-poisoning proof — distinct states for one handle get distin
     MODEL_VERSION: "h1",
     FEATURE_VERSION: "f1",
     CLOUDFLARE_ACCOUNT_ID: "acct-test",
-    CLEF_API_KEY: "k",
+    CLOUDFLARE_API_TOKEN: "k",
   };
 
   const state1 = {
@@ -686,7 +698,7 @@ test("task4: upstream-error logs never contain request body or reply text", asyn
       {
         CACHE_KV: kv,
         CLOUDFLARE_ACCOUNT_ID: "acct-test",
-        CLEF_API_KEY: "cf-token",
+        CLOUDFLARE_API_TOKEN: "cf-token",
         TYPESAFE_API_KEY: "jev-key",
       },
       null,

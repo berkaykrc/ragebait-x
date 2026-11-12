@@ -11,38 +11,47 @@ secrets in `/config`) — and are covered by `npm run check`.
 ## Worker (Cloudflare)
 
 1. Install wrangler locally in the Worker package: `cd worker && npm i -D wrangler`
-2. Create KV namespace: `cd worker && npx wrangler kv namespace create CACHE_KV`.
-   Copy the returned namespace ID into the `CACHE_KV` binding in
-   `worker/wrangler.toml`; do not reuse the repository's production ID for a
-   new deployment.
-3. Put Worker model credentials with Wrangler: `CLOUDFLARE_API_TOKEN` and
-   `JEV_API_KEY` (or `TYPESAFE_API_KEY`). Keep Worker API keys and deployment
-   credentials in Cloudflare secrets only. AMO signing credentials are a
-   separate release concern and belong only in the signing shell or GitHub
-   Actions secrets. `CLOUDFLARE_ACCOUNT_ID` is a public account identifier,
-   not an API credential; it may be a Worker variable.
-4. Deploy: `cd worker && npx wrangler deploy`
+2. Create KV namespace: `cd worker && npx wrangler kv namespace create CACHE_KV --env <environment>`.
+   Copy the returned namespace ID into the `CACHE_KV` binding for the
+   environment you deploy, for example `[[env.production.kv_namespaces]]` in
+   `worker/wrangler.toml`. Do not reuse the repository's production ID for a
+   new deployment. Copy `worker/wrangler.toml.example` and replace its
+   placeholder IDs and Worker names with your own.
+3. Put Worker model credentials with Wrangler, per environment:
+   `CLOUDFLARE_API_TOKEN` and `TYPESAFE_API_KEY`. These are the only Worker
+   model/deploy secret names. Keep them in Cloudflare secrets only; never in the
+   source tree, fixtures, or build output. AMO signing credentials are a
+   separate release concern and belong only in GitHub Actions secrets.
+   `CLOUDFLARE_ACCOUNT_ID` is a public account identifier, not an API
+   credential; it may be a Worker variable.
+4. Deploy explicitly (there is no bare deploy): `npm run deploy:production` or
+   `npm run deploy:staging` (each runs
+   `cd worker && npx wrangler deploy --env <environment>`). `wrangler.toml`
+   defines only named environments, so a bare `wrangler deploy` fails by design.
 5. Copy the deployed URL into `DEFAULT_PROXY_URL` in both `worker/src/config.js`
    and `src/config.js`, then rebuild.
 
 ### Operator step: separated environments
 
-The deploy config now declares three environments in `worker/wrangler.toml`:
-the top-level config (current production Worker), `[env.production]` (restates
-the same production KV namespace and values), and `[env.staging]` with a
-labelled placeholder KV id. Separation of namespaces and credentials lives in
-the Cloudflare account; this file cannot enforce it.
+The deploy config declares only two environments in `worker/wrangler.toml`:
+`[env.production]` and `[env.staging]`. There is no top-level Worker and no
+bare deploy; `name`, `main`, and `compatibility_date` live inside each
+environment, and every deploy uses `--env production` or `--env staging`.
+Separation of namespaces and credentials lives in the Cloudflare account; this
+file cannot enforce it.
 
-1. Create the staging namespace and replace the placeholder id:
+1. Create the staging namespace:
    `npx wrangler kv namespace create CACHE_KV --env staging`.
-   Never point staging at the production namespace id.
+   Copy the returned ID into `[[env.staging.kv_namespaces]]`. Never point
+   staging at the production namespace id. The repository's `wrangler.toml`
+   already holds this project's real staging ID; other operators copy
+   `wrangler.toml.example` and replace the placeholder.
 2. Set staging credentials per environment:
    `npx wrangler secret put CLOUDFLARE_API_TOKEN --env staging`,
-   `npx wrangler secret put TYPESAFE_API_KEY --env staging` (or
-   `JEV_API_KEY`), and
+   `npx wrangler secret put TYPESAFE_API_KEY --env staging`, and
    `npx wrangler secret put INSTALL_TOKEN_SECRET --env staging`.
    Wrangler secrets are scoped to the environment they are created against;
-   a top-level secret is not visible to named environments and vice versa.
+   a secret set on one env is not visible to the other env.
 3. Use different token values per environment. A staging leak must never
    compromise production, and staging traffic must never pollute production
    cache or quota state.
@@ -60,16 +69,16 @@ the Cloudflare account; this file cannot enforce it.
    Account: Workers Scripts: Edit, plus Account: Workers KV Storage: Edit for
    the namespaces the config binds. No zone-level permissions are required for
    this Worker.
-2. The rails the token is used on are `npx wrangler deploy` (and
-   `wrangler secret put`), preferred over dashboard edits so access stays
-   auditable and reproducible.
+2. The rails the token is used on are `npx wrangler deploy --env <environment>`
+   (and `wrangler secret put --env <environment>`), preferred over dashboard
+   edits so access stays auditable and reproducible.
 3. If the account has team members, apply the least-privilege membership
    roles; `CLOUDFLARE_ACCOUNT_ID` is a public account identifier and not
    sensitive, but write access to the account is.
 
 ### Operator step: production hardening (identity privacy + atomic limit)
 
-`worker/wrangler.toml` declares only the `CACHE_KV` namespaces, the three
+`worker/wrangler.toml` declares only the `CACHE_KV` namespaces, the two
 environments, and the public `[vars]` tables — no `[[durable_objects]]`
 entry and no operator secrets. Two protections above the code defaults are
 therefore deploy-side only. A docs-following deploy that skips this step
@@ -248,9 +257,9 @@ shell command line or this file.
    is not the wrangler shell credential: `wrangler secret put` still
    authenticates with its own token, so this is safe to corrupt and restore).
    Corrupt the names the deployment actually configured — Clef reads the
-   Worker secrets `CLOUDFLARE_API_TOKEN` then `CLEF_API_KEY`
-   (`callClef`, `worker/src/analyze.js`); Jev reads `TYPESAFE_API_KEY` then
-   `JEV_API_KEY` (`callJev`, `worker/src/analyze.js`):
+   Worker secret `CLOUDFLARE_API_TOKEN`
+   (`callClef`, `worker/src/analyze.js`); Jev reads `TYPESAFE_API_KEY`
+   (`callJev`, `worker/src/analyze.js`):
 
    ```sh
    npx wrangler secret put CLOUDFLARE_API_TOKEN --env staging   # enter: invalid-for-gate
@@ -270,8 +279,8 @@ shell command line or this file.
    response is not evidence of a broken gate: this procedure corrupts
    **both** upstream credentials, so a 200 means one of them was still live —
    the deployment's configured name differs from the one corrupted (Clef
-   reads `CLOUDFLARE_API_TOKEN` then `CLEF_API_KEY`; Jev reads
-   `TYPESAFE_API_KEY` then `JEV_API_KEY`), or the restore step above already
+   reads `CLOUDFLARE_API_TOKEN`; Jev reads
+   `TYPESAFE_API_KEY`), or the restore step above already
    ran. Re-corrupt the names this deployment actually configures and rerun
    with a further-distinct `replySample[0]`, since the 200 was cached for
    the identical body.
@@ -296,14 +305,14 @@ Evidence record (fill per release; keep with the release notes):
 
 | # | Check | Expected (contract) | Command | Date | Result |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `/config` exposes public flags only | the seven fields, nothing else | (1) | | |
-| 2 | Cache hit: no quota decrement, no model call | identical bodies, `diff` empty | (2) | | |
-| 3 | Exhausted identity fails closed | 429 `{"state":"quota"}` | (3) | | |
-| 4 | Kill switch pauses misses, cache serves | 503 `model_calls_paused`, `Retry-After: 60` | (4) | | |
-| 5 | Global ceiling shared and bounded | 503 `model_calls_paused`, `Retry-After: 60` | (5) | | |
-| 6 | Model failure bounded, unit spent (only while Clef cannot succeed — both upstream credentials corrupted; a 200 means Clef is live) | 502 `{"error":"ai_unavailable"}` | (6) | | |
-| 7 | Unusable quota store fails closed | 503 `{"error":"quota_unavailable"}` | (7) | | |
-| 8 | Edge per-IP rate limit enforced | edge 429 in Cloudflare analytics | (8) | | |
+| 1 | `/config` exposes public flags only | the seven fields, nothing else | (1) | 2026-11-08 | Pass — 7 fields, `proxyUrl` is production URL by design, no secrets |
+| 2 | Cache hit: no quota decrement, no model call | identical bodies, `diff` empty | (2) | 2026-11-08 | Pass (rerun after model fix) — `200 jev` bodies, `diff exit: 0` |
+| 3 | Exhausted identity fails closed | 429 `{"state":"quota"}` | (3) | 2026-11-08 | Pass — `429`, `x-quota-remaining: 0`, body `{"state":"quota"}` 17 bytes |
+| 4 | Kill switch pauses misses, cache serves | 503 `model_calls_paused`, `Retry-After: 60` | (4) | 2026-11-08 | Pass (rerun after model fix) — miss `503`, hit `200` cached |
+| 5 | Global ceiling shared and bounded | 503 `model_calls_paused`, `Retry-After: 60` | (5) | 2026-11-08 | Pass (retry) — first run propagation delay `200`, retry ceiling `1` → `503` |
+| 6 | Model failure bounded, unit spent (only while Clef cannot succeed — both upstream credentials corrupted; a 200 means Clef is live) | 502 `{"error":"ai_unavailable"}` | (6) | 2026-11-08 | Pass — `502`, `x-quota-remaining: 199`, tail shows Clef `401` + Jev `401`, body file capture empty |
+| 7 | Unusable quota store fails closed | 503 `{"error":"quota_unavailable"}` | (7) | 2026-11-08 | Pass — `503`, `retry-after: 60`, length 29 `quota_unavailable`, binding restored |
+| 8 | Edge per-IP rate limit enforced | edge 429 in Cloudflare analytics | (8) | 2026-11-08 | **Incomplete** — WAF rate limiting requires paid Pro plan. Blocked. Mitigation: Worker per-identity quota + global ceiling live. Edge limit postponed. |
 
 ## Operations
 
@@ -345,8 +354,8 @@ Operator steps for rotation (per environment, `--env staging` /
    replacement token in the Cloudflare dashboard first, swap it into the
    Worker, then revoke the old token in the dashboard. Old and new overlap
    only during the swap.
-2. Rotate `TYPESAFE_API_KEY` / `JEV_API_KEY` with
-   `npx wrangler secret put <NAME> --env <env>` after generating the new key
+2. Rotate `TYPESAFE_API_KEY` with
+   `npx wrangler secret put TYPESAFE_API_KEY --env <env>` after generating the new key
    in the upstream model provider's console; verify `/analyze` succeeds, then
    revoke the old provider-side key.
 3. Rotate `INSTALL_TOKEN_SECRET` with

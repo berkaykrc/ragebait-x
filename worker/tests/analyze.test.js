@@ -103,7 +103,7 @@ test("analyze: Clef success -> 200 + answers + model: 'clef'", async () => {
 
   const res = await analyze(
     { state: VALID_STATE, installToken: "tok-123" },
-    { CLOUDFLARE_ACCOUNT_ID: "acct-test", CLEF_API_KEY: "cf-token" },
+    { CLOUDFLARE_ACCOUNT_ID: "acct-test", CLOUDFLARE_API_TOKEN: "cf-token" },
     mockFetch,
   );
 
@@ -136,7 +136,7 @@ test("analyze: Clef 529/5xx -> Jev fallback called, model: 'jev'", async () => {
     { state: VALID_STATE, installToken: "tok-123" },
     {
       CLOUDFLARE_ACCOUNT_ID: "acct-test",
-      CLEF_API_KEY: "cf-token",
+      CLOUDFLARE_API_TOKEN: "cf-token",
       TYPESAFE_API_KEY: "jev-key",
     },
     mockFetch,
@@ -158,7 +158,7 @@ test("analyze: both Clef and Jev fail -> 502 with ai_unavailable", async () => {
     { state: VALID_STATE, installToken: "tok-123" },
     {
       CLOUDFLARE_ACCOUNT_ID: "acct-test",
-      CLEF_API_KEY: "cf-token",
+      CLOUDFLARE_API_TOKEN: "cf-token",
       TYPESAFE_API_KEY: "jev-key",
     },
     mockFetch,
@@ -181,11 +181,35 @@ test("analyze: noul answers arrive as {noul: number} objects", async () => {
 
   const res = await analyze(
     { state: VALID_STATE, installToken: "tok-123" },
-    { CLOUDFLARE_ACCOUNT_ID: "acct-test", CLEF_API_KEY: "cf-token" },
+    { CLOUDFLARE_ACCOUNT_ID: "acct-test", CLOUDFLARE_API_TOKEN: "cf-token" },
     mockFetch,
   );
 
   const data = await res.json();
   assert.equal(typeof data.answers.is_provocative.noul, "number");
   assert.equal(typeof data.answers.is_engagement_bait.noul, "number");
+});
+
+test("analyze: Jev without TYPESAFE_API_KEY fails fast (no unauthenticated POST)", async () => {
+  let calls = 0;
+  const mockFetch = () => {
+    calls += 1;
+    // Clef fails, so the router falls back to Jev.
+    return Promise.resolve(new Response("Error", { status: 500 }));
+  };
+
+  const res = await analyze(
+    { state: VALID_STATE, installToken: "tok-123" },
+    {
+      CLOUDFLARE_ACCOUNT_ID: "acct-test",
+      CLOUDFLARE_API_TOKEN: "cf-token",
+      // TYPESAFE_API_KEY intentionally missing.
+    },
+    mockFetch,
+  );
+
+  assert.equal(res.status, 502);
+  const data = await res.json();
+  assert.equal(data.error, "ai_unavailable");
+  assert.equal(calls, 1, "only Clef is called; Jev fails fast");
 });
