@@ -146,3 +146,38 @@ test("orchestration-ai: AI failure must never erase an existing result from the 
   assert.equal(res.band, "high");
   assert.equal(res.percent, 85);
 });
+
+test("orchestration-ai: replySample is scrubbed and truncated before the AI call", async () => {
+  let capturedState = null;
+  const mockAnalyzeAi = (state) => {
+    capturedState = state;
+    return Promise.resolve({ band: "medium", percent: 50, model: "spy" });
+  };
+
+  const longReply = "A".repeat(500);
+  const replies = Array.from({ length: 5 }, (_, i) => ({
+    id: `r-${i}`,
+    text: i === 0
+      ? "see https://x.com/a. and @bob"
+      : (i === 1 ? longReply : `Reply text number ${i}`),
+    lang: "en",
+    targetScreenName: "target",
+    parentStatusId: null,
+    likes: 1,
+    createdAt: 1000 + i,
+  }));
+
+  const res = await handleScoreRequest("alice", {
+    fetchReplies: () => Promise.resolve({ ok: true, replies }),
+    analyzeWithAi: mockAnalyzeAi,
+    settings: { mode: "proxy", proxyEnabled: true, consentAccepted: true },
+    config: { showNumber: true },
+    skipCache: true,
+  });
+
+  assert.equal(res.state, "result");
+  assert.ok(capturedState, "AI state must be captured");
+  assert.equal(capturedState.replySample.length, 5);
+  assert.equal(capturedState.replySample[0], "see [link]. and @…");
+  assert.equal(capturedState.replySample[1].length, 400);
+});

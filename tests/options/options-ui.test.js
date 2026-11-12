@@ -186,3 +186,34 @@ test("options: conditional cards toggle the hidden attribute, never inline displ
   updateModeUI(doc, "proxy");
   assert.equal(proxyFields.hidden, true, "consent still gates the fields");
 });
+
+test("options: document carries strict CSP, referrer-policy and no inline styles", () => {
+  const doc = page();
+  const cspMeta = doc.querySelector(
+    'meta[http-equiv="Content-Security-Policy"]',
+  );
+  assert.ok(cspMeta, "CSP meta tag must be present");
+  assert.ok(cspMeta.content.includes("default-src 'none'"));
+  assert.ok(cspMeta.content.includes("connect-src 'none'"));
+  assert.ok(cspMeta.content.includes("script-src 'self'"));
+  assert.ok(cspMeta.content.includes("style-src 'self'"));
+
+  const referrerMeta = doc.querySelector('meta[name="referrer"]');
+  assert.ok(referrerMeta, "referrer meta tag must be present");
+  assert.equal(referrerMeta.content, "no-referrer");
+
+  // A Permissions-Policy meta tag is deliberately absent: the spec defines
+  // it as a response header only, so a meta tag has no effect.
+  assert.equal(
+    doc.querySelector('meta[http-equiv="Permissions-Policy"]'),
+    null,
+    "Permissions-Policy meta tag must not be present",
+  );
+
+  const inlineStyles = doc.querySelectorAll("[style]");
+  assert.equal(
+    inlineStyles.length,
+    0,
+    "options HTML must contain zero inline style attributes",
+  );
+});

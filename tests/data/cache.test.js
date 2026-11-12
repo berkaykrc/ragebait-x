@@ -309,6 +309,131 @@ test("peek regardless TTL", async () => {
   assert.equal(await c.get("h"), null);
 });
 
+test("expired entry is physically deleted from storage on get", async () => {
+  const storage = makeStorage();
+  const removed = [];
+  storage.remove = (keys) => {
+    for (const key of keys) {
+      removed.push(key);
+      delete storage._data[key];
+    }
+  };
+  let t = 0;
+  const now = () => t;
+  const c = createCache({
+    storage,
+    now,
+    modelVersion: "h1",
+    featureVersion: "f1",
+  });
+  await c.set("h", { state: "result" });
+  const key = "ragebait:v1:h1:f1:h";
+  assert.ok(key in storage._data, "entry written to storage");
+  t = 10 * DAY;
+  assert.equal(await c.get("h"), null);
+  assert.deepEqual(removed, [key]);
+  assert.equal(key in storage._data, false);
+});
+
+test("corrupt json is physically deleted from storage on get", async () => {
+  const storage = makeStorage();
+  const key = "ragebait:v1:h1:f1:h";
+  storage.set(key, "{not valid json");
+  const removed = [];
+  storage.remove = (keys) => {
+    for (const k of keys) {
+      removed.push(k);
+      delete storage._data[k];
+    }
+  };
+  const c = createCache({
+    storage,
+    now: () => 1,
+    modelVersion: "h1",
+    featureVersion: "f1",
+  });
+  assert.equal(await c.get("h"), null);
+  assert.deepEqual(removed, [key]);
+  assert.equal(key in storage._data, false);
+});
+
+test("corrupt json is physically deleted from storage on peek", async () => {
+  const storage = makeStorage();
+  const key = "ragebait:v1:h1:f1:h";
+  storage.set(key, "{not valid json");
+  const removed = [];
+  storage.remove = (keys) => {
+    for (const k of keys) {
+      removed.push(k);
+      delete storage._data[k];
+    }
+  };
+  const c = createCache({
+    storage,
+    now: () => 1,
+    modelVersion: "h1",
+    featureVersion: "f1",
+  });
+  assert.equal(await c.peek("h"), null);
+  assert.deepEqual(removed, [key]);
+  assert.equal(key in storage._data, false);
+});
+
+test("sweep removes expired entries for handles that are never re-hovered", async () => {
+  const storage = makeStorage();
+  storage.set("settings", "{}");
+  let t = 0;
+  const now = () => t;
+  const c = createCache({
+    storage,
+    now,
+    modelVersion: "h1",
+    featureVersion: "f1",
+  });
+  await c.set("old", { state: "result" });
+  const key = "ragebait:v1:h1:f1:old";
+  t = 10 * DAY;
+  storage.keys = () => Promise.resolve([key, "settings"]);
+  storage.remove = (keys) => {
+    for (const k of keys) delete storage._data[k];
+    return Promise.resolve();
+  };
+  const removed = await c.sweep();
+  assert.deepEqual(removed, [key]);
+  assert.equal(key in storage._data, false);
+  assert.equal("settings" in storage._data, true);
+});
+
+test("sweep removes corrupt entries", async () => {
+  const storage = makeStorage();
+  const key = "ragebait:v1:h1:f1:bad";
+  storage.set(key, "{not valid json");
+  storage.keys = () => Promise.resolve([key]);
+  storage.remove = (keys) => {
+    for (const k of keys) delete storage._data[k];
+    return Promise.resolve();
+  };
+  const c = createCache({
+    storage,
+    now: () => 1,
+    modelVersion: "h1",
+    featureVersion: "f1",
+  });
+  const removed = await c.sweep();
+  assert.deepEqual(removed, [key]);
+  assert.equal(key in storage._data, false);
+});
+
+test("sweep tolerates a throwing storage", async () => {
+  const c = createCache({
+    storage: throwingStorage(),
+    now: () => 1,
+    modelVersion: "h1",
+    featureVersion: "f1",
+  });
+  assert.deepEqual(await c.sweep(), []);
+});
+
 test("peek async storage", async () => {
   const storage = makeAsyncStorage();
   const c = createCache({

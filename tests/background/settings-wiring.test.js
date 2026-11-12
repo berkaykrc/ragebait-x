@@ -320,3 +320,63 @@ test("wiring: settings saved AFTER load are picked up on a later request", async
   assert.equal(captured.length, 1);
   assert.equal(captured[0].mode, "proxy");
 });
+
+test("wiring: boot prunes old stats counters via the keys-only storage read", async () => {
+  const store = new Map();
+  store.set("stats:2020-01-01", 5);
+  store.set("stats:2099-01-01", 7);
+  store.set("settings", "{}");
+
+  let pruneDone;
+  const pruneStarted = new Promise((resolve) => {
+    pruneDone = resolve;
+  });
+
+  const api = makeBrowserApi(store);
+  api.storage.local.getKeys = () => Promise.resolve([...store.keys()]);
+  api.storage.local.remove = (keys) => {
+    for (const k of keys) store.delete(k);
+    pruneDone();
+    return Promise.resolve();
+  };
+
+  wireBrowserRuntime(api, {});
+  await pruneStarted;
+
+  assert.equal(store.has("stats:2020-01-01"), false, "old counter pruned");
+  assert.equal(store.has("stats:2099-01-01"), true, "future counter kept");
+  assert.equal(store.has("settings"), true, "unrelated key kept");
+});
+
+test("wiring: keys() skips pruning when getKeys is unavailable (no get(null))", async () => {
+  const store = new Map();
+  store.set("stats:2020-01-01", 5);
+
+  let getNullCalled = false;
+  const api = makeBrowserApi(store);
+  // No getKeys: the adapter must not fall back to a whole-store get(null).
+  api.storage.local.get = (key) => {
+    if (key === null) getNullCalled = true;
+    return Promise.resolve(store.has(key) ? { [key]: store.get(key) } : {});
+  };
+
+  wireBrowserRuntime(api, {});
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.equal(getNullCalled, false, "must not read the whole store");
+  assert.equal(store.has("stats:2020-01-01"), true, "no pruning without keys");
+});
+
+test("wiring: boot tolerates a cache with no sweep() method", () => {
+  const api = makeBrowserApi(new Map());
+  // A broken/legacy cache seam without sweep must not prevent wiring.
+  const bg = wireBrowserRuntime(api, {
+    cache: {
+      get: () => null,
+      set: () => {},
+      peek: () => null,
+    },
+  });
+  assert.ok(bg, "background wired despite missing sweep");
+  assert.doesNotThrow(() => bg.sweepCache(), "sweepCache is guarded");
+});

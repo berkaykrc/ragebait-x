@@ -560,6 +560,24 @@ body.rb-options a:hover {
   .rb-rise {
     animation: rb-rise 640ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
   }
+  .rb-delay-70 {
+    animation-delay: 70ms;
+  }
+  .rb-delay-105 {
+    animation-delay: 105ms;
+  }
+  .rb-delay-210 {
+    animation-delay: 210ms;
+  }
+  .rb-delay-280 {
+    animation-delay: 280ms;
+  }
+  .rb-delay-330 {
+    animation-delay: 330ms;
+  }
+  .rb-delay-380 {
+    animation-delay: 380ms;
+  }
 }
 
 @keyframes rb-rise {

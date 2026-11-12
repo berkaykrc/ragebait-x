@@ -1,9 +1,13 @@
 // Local versioned cache for ragebait-detector.
 //
 // STORAGE SEAM (for the (future) browser.storage.local wrapper, Task 8):
-//   - `storage` is an injected object with two methods:
+//   - `storage` is an injected object with two methods plus optional
+//     removal used to physically evict expired entries:
 //       get(key) -> stored JSON string | null   (sync or Promise)
 //       set(key, jsonString) -> void            (sync or Promise)
+//       remove(keys: string[]) -> void          (optional, best-effort;
+//       delete(key) -> void                     (fake dialect fallback)
+//       keys() -> string[]                      (optional, used by sweep)
 //   cache.js owns all JSON (de)serialisation and keying. Every read is
 //   awaited internally so both synchronous fakes and a Promise-returning
 //   browser.storage.local adapter work unchanged.
@@ -105,6 +109,25 @@ async function tryStorageSet(storage, key, json) {
   }
 }
 
+/**
+ * Best-effort physical delete of an expired or corrupt entry. Supports both
+ * seam dialects: `remove(keys)` (browser.storage.local, always an array) and
+ * `delete(key)` (fakes, a single key). Never throws; a missing removal method
+ * just leaves the entry unread.
+ */
+async function tryStorageRemove(storage, key) {
+  if (!storage) return;
+  try {
+    if (typeof storage.remove === "function") {
+      await storage.remove([key]);
+    } else if (typeof storage.delete === "function") {
+      await storage.delete(key);
+    }
+  } catch {
+    // Swallow: pruning must never break a score lookup.
+  }
+}
+
 export function createCache({
   storage,
   now,
@@ -139,8 +162,18 @@ export function createCache({
     if (res.raw === null || res.raw === undefined) return null;
 
     const parsed = parseEnvelope(res.raw);
-    if (!parsed) return null;
-    if (isExpired(parsed, currentNow)) return null;
+    if (!parsed) {
+      // Corrupt JSON is never readable again; evict it so it cannot
+      // accumulate in storage.local.
+      await tryStorageRemove(storage, k);
+      return null;
+    }
+    if (isExpired(parsed, currentNow)) {
+      // Physical eviction, not just logical expiry: without this, expired
+      // envelopes accumulate in storage.local forever.
+      await tryStorageRemove(storage, k);
+      return null;
+    }
 
     mem.set(k, parsed);
     return withStale(parsed, currentNow);
@@ -160,8 +193,15 @@ export function createCache({
     if (res.raw === null || res.raw === undefined) return null;
 
     const parsed = parseEnvelope(res.raw);
-    if (!parsed) return null;
-    mem.set(k, parsed);
+    if (!parsed) {
+      await tryStorageRemove(storage, k);
+      return null;
+    }
+    // Peek is TTL-agnostic by contract, but do not seed the front cache with
+    // an expired envelope: `get` would only delete it again.
+    if (!isExpired(parsed, nowFn())) {
+      mem.set(k, parsed);
+    }
     return parsed;
   }
 
@@ -194,7 +234,36 @@ export function createCache({
     await tryStorageSet(storage, k, json);
   }
 
-  return { get, set, peek };
+  async function sweep() {
+    if (!storage || typeof storage.keys !== "function") return [];
+    let keys;
+    try {
+      keys = await storage.keys();
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(keys)) return [];
+    const currentNow = nowFn();
+    const removed = [];
+    for (const k of keys) {
+      if (typeof k !== "string" || !k.startsWith("ragebait:")) continue;
+      const res = await tryStorageGet(storage, k);
+      if (res.threw) continue;
+      if (res.raw === null || res.raw === undefined) {
+        await tryStorageRemove(storage, k);
+        removed.push(k);
+        continue;
+      }
+      const parsed = parseEnvelope(res.raw);
+      if (!parsed || isExpired(parsed, currentNow)) {
+        await tryStorageRemove(storage, k);
+        removed.push(k);
+      }
+    }
+    return removed;
+  }
+
+  return { get, set, peek, sweep };
 }
 
 export default createCache;

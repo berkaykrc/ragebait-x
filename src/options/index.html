@@ -2,6 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'"
+    >
+    <meta name="referrer" content="no-referrer">
     <title>Ragebait settings</title>
     <link rel="icon" type="image/png" href="icon-32.png">
     <link rel="stylesheet" href="brand.css">
@@ -18,8 +23,7 @@
 
     <fieldset
       id="mode-fieldset"
-      class="rb-card rb-rise"
-      style="animation-delay: 70ms"
+      class="rb-card rb-rise rb-delay-70"
     >
       <legend class="rb-label">Mode</legend>
       <label for="mode-heuristic"><input
@@ -46,7 +50,7 @@
         > Bring your own key</label>
     </fieldset>
 
-    <div class="rb-notice rb-rise" role="note" style="animation-delay: 105ms">
+    <div class="rb-notice rb-rise rb-delay-105" role="note">
       <span class="rb-notice-title">Data notice</span>
       <p class="rb-notice-text">
         The hovered X handle is sent to
@@ -69,10 +73,11 @@
       </p>
       <p class="rb-notice-text" data-mode-note="proxy" hidden>
         Proxy mode sends the handle, the computed feature object and up to 12
-        reply snippets (truncated to 400 characters) to the hosted Worker. The
-        Worker forwards a normalised version to Clef 27B, with Jev as fallback,
-        and may keep results in a shared cache for 48 hours. The hosted service
-        allows 200 analyses per install per day.
+        reply snippets (truncated to 400 characters, with third-party handles,
+        URLs and email-like addresses best-effort scrubbed) to the hosted
+        Worker. The Worker forwards a normalised version to the configured AI
+        models and may keep results in a shared cache for 48 hours. The hosted
+        service allows 200 analyses per install per day.
       </p>
       <p class="rb-notice-text" data-mode-note="byok" hidden>
         BYOK sends the same payload to the endpoint you configure, authorised by
@@ -101,8 +106,7 @@
     </div>
 
     <div
-      class="rb-card rb-rise"
-      style="animation-delay: 210ms"
+      class="rb-card rb-rise rb-delay-210"
       id="quota-card"
       hidden
     >
@@ -118,9 +122,20 @@
         enforces the same 200 per install per day. Heuristic and BYOK modes
         consume nothing of ours; BYOK is limited by your endpoint.
       </p>
+      <p
+        class="rb-notice-text"
+        title="Anonymous quota identifier. Stored in browser.storage.local with no rotation or expiry. Sent only to the hosted proxy to enforce the 200/day limit. No reset is offered: a reset would let anyone mint a fresh token and bypass the 200/day limit."
+      >
+        <strong>Install identifier:</strong> A random, locally generated
+        anonymous token is used solely to enforce the 200 daily analysis quota
+        on the hosted proxy. It contains no personal or account information. The
+        proxy sees the same token on every request, so it can count this
+        install's daily usage and block quota abuse. The token is not sent to
+        any other website.
+      </p>
     </div>
 
-    <div class="rb-legend rb-rise" style="animation-delay: 280ms">
+    <div class="rb-legend rb-rise rb-delay-280">
       <div class="rb-legend-row">
         <span class="rb-legend-item rb-legend-low">
           <span class="rb-seg rb-on"></span>
@@ -148,8 +163,7 @@
     </div>
 
     <p
-      class="rb-report rb-rise"
-      style="animation-delay: 330ms"
+      class="rb-report rb-rise rb-delay-330"
       hidden
       id="misclassification-report"
     >
@@ -160,7 +174,7 @@
       >Report a misclassification</a>
     </p>
 
-    <div class="rb-actions rb-rise" style="animation-delay: 380ms">
+    <div class="rb-actions rb-rise rb-delay-380">
       <span id="status" class="rb-status"></span>
       <button id="save-btn" class="rb-btn">Save</button>
     </div>

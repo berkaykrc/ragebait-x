@@ -15,6 +15,7 @@ import {
 import {
   consumeDailyProfile as defaultConsumeDailyProfile,
   MAX_DAILY_PROFILES,
+  pruneOldDailyStats,
 } from "./quota-local.js";
 import { makeScoreResponse } from "./protocol.js";
 import {
@@ -32,6 +33,42 @@ function nowOf(deps) {
   if (isFn(deps.now)) return deps.now;
   if (typeof deps.now === "number") return () => deps.now;
   return () => Date.now();
+}
+
+// The Worker input gate rejects more than 12 snippets or any snippet over
+// 400 characters (worker/src/analyze.js). Match those caps here so a long
+// reply is truncated locally instead of failing the whole request.
+const MAX_REPLY_SAMPLE_ITEMS = 12;
+const MAX_REPLY_SNIPPET_CHARS = 400;
+
+/**
+ * Best-effort scrub of third-party @mention handles, URLs, and email-like
+ * addresses from reply snippets before sending to AI. `@username` becomes
+ * `@…`, whole `http(s)://…` URLs become `[link]`, and email-like tokens
+ * become `[email]`. Models cannot surf links, so URLs cost tokens and
+ * contribute nothing. Quoted tweet text and conversation context stay intact.
+ * The email pass is intentionally broad (Unicode/IDN local-part and domain,
+ * dot-less hostnames) to reduce accidental PII broadcast; it is not a
+ * validator.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function scrubReplyMentions(text) {
+  if (typeof text !== "string") return "";
+  return text
+    .replace(/https?:\/\/\S+/gi, (m) => {
+      // Do not eat trailing punctuation: `https://x.com/a.` keeps its period.
+      const trailing = m.match(/[.,;:!?)\]}'"]+$/);
+      return "[link]" + (trailing ? trailing[0] : "");
+    })
+    .replace(
+      /(?:^|[\s(])[^\s@]+@(?:[\p{L}\p{N}_-]+\.)*[\p{L}\p{N}_-]{2,}(?=$|[\s,;:!?)}\]'"])/gu,
+      (
+        m,
+      ) => (m[0] === "@" || /\s|\(/.test(m[0]) ? m[0] + "[email]" : "[email]"),
+    )
+    .replace(/(?<!\w)@\w{1,15}\b/g, "@…");
 }
 
 function resolveDeps(deps = {}) {
@@ -68,6 +105,9 @@ function resolveDeps(deps = {}) {
         set() {},
         peek() {
           return null;
+        },
+        sweep() {
+          return [];
         },
       };
     }
@@ -367,8 +407,10 @@ export async function handleScoreRequest(handle, deps = {}) {
           const aiState = {
             handle: h,
             features,
-            replySample: replies.slice(0, 12).map((rep) =>
-              typeof rep === "string" ? rep : (rep?.text || "")
+            replySample: replies.slice(0, MAX_REPLY_SAMPLE_ITEMS).map((rep) =>
+              scrubReplyMentions(
+                typeof rep === "string" ? rep : (rep?.text || ""),
+              ).slice(0, MAX_REPLY_SNIPPET_CHARS)
             ),
           };
 
@@ -667,6 +709,13 @@ export function createBackground(deps = {}) {
     cancel: cancelBound,
     abort: cancelBound,
     releaseDedupe: cancelBound,
+    sweepCache: () => {
+      try {
+        return typeof r.cache.sweep === "function" ? r.cache.sweep() : [];
+      } catch {
+        return [];
+      }
+    },
     handleMessage,
     onMessage: handleMessage,
     handleRuntimeMessage: handleMessage,
@@ -709,8 +758,30 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
       async set(key, value) {
         await browserApi.storage.local.set({ [key]: value });
       },
+      async remove(keys) {
+        await browserApi.storage.local.remove(keys);
+      },
+      async keys() {
+        const local = browserApi.storage.local;
+        // Keys-only read. `getKeys()` requires Firefox 51+; this extension
+        // requires 142 (manifest strict_min_version). Without it, pruning is
+        // skipped rather than reading the whole store with `get(null)`.
+        if (typeof local.getKeys !== "function") {
+          return [];
+        }
+        const keys = await local.getKeys();
+        return Array.isArray(keys) ? keys : [];
+      },
     }
     : null;
+
+  if (storage) {
+    // Boot sweep: prune old stats counters. A prune failure must never crash
+    // the background; the next boot retries.
+    void pruneOldDailyStats(storage).catch((err) => {
+      console.warn("ragebait:bg: stats prune failed:", err);
+    });
+  }
 
   // getInstallToken and the config cache speak the items-shaped storage
   // dialect used by browser.storage.local (get(keys) -> Record,
@@ -800,6 +871,14 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
     ...deps,
   });
 
+  // Boot sweep: remove expired cache entries for handles that are never
+  // re-hovered. Best-effort; never blocks the background.
+  if (typeof bg.sweepCache === "function") {
+    void Promise.resolve(bg.sweepCache()).catch((err) => {
+      console.warn("ragebait:bg: cache sweep failed:", err);
+    });
+  }
+
   // Boot line: proves the new background is actually running after a reload.
   // Absence of this line after a reload means the background script failed to
   // load (or the add-on is still running a stale build).
@@ -857,7 +936,11 @@ if (extensionApi) {
   } catch { /* ignore */ }
 }
 
-export { DAILY_KEY, MAX_DAILY_PROFILES } from "./quota-local.js";
+export {
+  DAILY_KEY,
+  MAX_DAILY_PROFILES,
+  pruneOldDailyStats,
+} from "./quota-local.js";
 export { cancelScoreRequest as cancelScore };
 export { cancelScoreRequest as cancel };
 export { cancelScoreRequest as abort };
