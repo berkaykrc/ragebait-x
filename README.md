@@ -28,8 +28,9 @@ request came from an official or unmodified client.
 - Modes: heuristic, proxy, and BYOK (`MODEL_VERSION = "h1"`,
   `FEATURE_VERSION = "f1"`)
 - Browser: Firefox (MV2) and Chrome (MV3) — `npm run build` emits both roots.
-  Firefox releases are signed via the release workflow; Chrome MV3 is loaded
-  unpacked, with no store or publish step yet.
+  Firefox releases are signed via the release workflow; Chrome MV3 has no store
+  or publish step, so the `ragebait-detector-mv3.zip` release asset (or a local
+  `dist-mv3/`) is the distributable today.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
 
 ## How it works
@@ -119,7 +120,8 @@ add-on and disappears when Firefox closes. A permanent install on release
 Firefox needs the signed `.xpi` attached to the GitHub Release
 (`npm run release` starts CI signing; nothing is signed locally). Permanent
 installs update from `releases/latest/download/updates.json` (see `update_url`
-in the manifest).
+in the manifest). Chrome has no update path yet: use the
+`ragebait-detector-mv3.zip` release asset or load `dist-mv3/` unpacked.
 
 ## Privacy
 

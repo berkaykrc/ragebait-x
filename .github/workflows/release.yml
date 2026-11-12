@@ -1,4 +1,8 @@
-# Release: sign with AMO and attach the .xpi to a GitHub Release.
+# Release: sign with AMO and attach the release assets.
+#
+# Each Release carries three assets: the signed Firefox XPI, updates.json for
+# Firefox's update check, and a Chrome MV3 zip for unpacked/manual install.
+# There is no Chrome Web Store publish step.
 #
 # TWO WAYS TO RELEASE -- both are standard, both are supported:
 #
@@ -170,12 +174,17 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Fail before signing: scans dist-mv2/ and dist-mv3/ for
-      # credential-shaped values. web-ext-artifacts/ does not exist yet — it
-      # is created later by the sign/package steps, so packaged-XPI member
-      # scanning happens in the release checklist's `npm run package` +
-      # `npm run check:artifacts` step. The workflow that signs the XPI
-      # must not be able to skip the secret scan.
+      # web-ext names its zip after the manifest. The packaging script also
+      # writes the stable asset name used in the download link.
+      - name: Package Chrome MV3
+        run: npm run package:mv3
+
+      # Fail before signing: scans dist-mv2/, dist-mv3/ and the packaged
+      # Chrome zip for credential-shaped values. The signed Firefox XPI is
+      # created later by sign.sh, so packaged-XPI member scanning happens in
+      # the release checklist's `npm run package` + `npm run check:artifacts`
+      # step. The workflow that signs the XPI must not be able to skip the
+      # secret scan.
       - name: Artifact secret scan
         run: npm run check:artifacts
 
@@ -210,7 +219,7 @@ jobs:
           cp "$artifact" "web-ext-artifacts/ragebait-detector.xpi"
           node scripts/update-manifest.mjs --out web-ext-artifacts/updates.json
 
-      - name: Attach the signed .xpi to the Release
+      - name: Attach the release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -220,4 +229,5 @@ jobs:
             --title "${tag_name}" \
             --generate-notes \
             web-ext-artifacts/ragebait-detector.xpi \
-            web-ext-artifacts/updates.json
+            web-ext-artifacts/updates.json \
+            web-ext-artifacts/ragebait-detector-mv3.zip

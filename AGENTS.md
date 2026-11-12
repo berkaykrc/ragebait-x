@@ -85,4 +85,5 @@ authentication — anything on the page can read it. See plan §3 and decision D
 Unsigned Firefox builds work on Nightly / Developer Edition / unbranded only;
 release Firefox needs the signed `.xpi` that the release workflow attaches to
 the GitHub Release (`npm run release` pushes a tag; CI signs with AMO). Chrome
-MV3 is loaded unpacked for now — there is no store or publish step yet.
+MV3 has no store or publish step; the release workflow attaches
+`ragebait-detector-mv3.zip`, and local development loads `dist-mv3/` unpacked.

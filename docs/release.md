@@ -394,29 +394,38 @@ Incident response checklist:
    `web-ext-artifacts/ragebait_detector-<version>.zip` — the `{name}-{version}.zip`
    template with the manifest name lowercased and non-alphanumerics replaced
    with `_`).
-4. Inspect the zip before release:
-   `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip`. The member
-   list must contain only `manifest.json`, bundled code (`*.js`, `*.css`),
-   `options.*`, and icon/brand assets (`*.png`, `*.svg`) — no dotfiles, no
-   configuration or secret material. Member contents were already scanned by
-   `check:artifacts` (it expands zip members). Record the listing with the
-   release evidence.
-5. Release through CI: `npm run release patch` (bumps the version, commits,
-   tags, and pushes). The tag starts `.github/workflows/release.yml`, which
-   builds, tests, signs with the `AMO_KEY`/`AMO_SECRET` repository secrets, and
-   attaches two assets to the GitHub Release: `ragebait-detector.xpi` (stable
-   name) and `updates.json` (the Firefox update manifest). Signing never runs
-   locally: `scripts/sign.sh` refuses outside GitHub Actions.
-6. `update_url` points at
+4. `npm run package:mv3` packages `dist-mv3` and copies the result to the
+   stable asset name `web-ext-artifacts/ragebait-detector-mv3.zip`. This is the
+   Chrome distributable: unpacked/manual install only, no Chrome Web Store
+   publish. The store signs the CRX on upload, so no local signing step
+   exists.
+5. Inspect both zips before release:
+   `unzip -l web-ext-artifacts/ragebait_detector-<version>.zip` and
+   `unzip -l web-ext-artifacts/ragebait-detector-mv3.zip`. The member list must
+   contain only `manifest.json`, bundled code (`*.js`, `*.css`), `options.*`,
+   and icon/brand assets (`*.png`, `*.svg`) — no dotfiles, no configuration or
+   secret material. Record the listing with the release evidence.
+6. Re-run `npm run check:artifacts` after packaging. It expands zip members, so
+   this is the scan that covers the packaged files rather than only the build
+   roots.
+7. Release through CI: `npm run release patch` (bumps the version in both
+   manifests, commits, tags, and pushes). The tag starts
+   `.github/workflows/release.yml`, which builds, packages, tests, signs with
+   the `AMO_KEY`/`AMO_SECRET` repository secrets, and attaches three assets to
+   the GitHub Release: `ragebait-detector.xpi` (stable name), `updates.json`
+   (the Firefox update manifest), and `ragebait-detector-mv3.zip`. Signing
+   never runs locally: `scripts/sign.sh` refuses outside GitHub Actions.
+8. `update_url` points at
    `https://github.com/berkaykrc/ragebait-x/releases/latest/download/updates.json`.
    The add-on is self-hosted (GitHub Releases), so `npm run lint` passes
    `--self-hosted` to web-ext; without it, addons-linter rejects `update_url`
    as an AMO-hosted field. The repository must be public: the release workflow
    refuses to sign when `gh api repos/<owner>/<repo>` reports anything other
    than `public`, because private release assets cannot serve update checks.
-7. Permanent install uses the signed `.xpi` from the GitHub Release. Local
+9. Permanent install uses the signed `.xpi` from the GitHub Release. Local
    development loads the unsigned `dist-mv2/manifest.json` as a temporary
-   add-on.
+   add-on. Chrome users load `dist-mv3/` unpacked, or the release zip after
+   extracting it.
 
 ## Verification
 
