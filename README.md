@@ -20,18 +20,54 @@ the extension. X account IDs and install tokens are quota/accounting identifiers
 only: they are forgeable, are not authentication, and do not prove that a
 request came from an official or unmodified client.
 
+[![Firefox](https://img.shields.io/badge/Firefox-Install-FF7139?style=flat-square&logo=firefoxbrowser)](https://github.com/berkaykrc/ragebait-x#install)
+[![Chrome](https://img.shields.io/badge/Chrome-Install-4285F4?style=flat-square&logo=googlechrome)](https://github.com/berkaykrc/ragebait-x#install)
+
 ## Status
 
-- Latest release: [Releases](../../releases/latest). The version of record is
-  `version` in `manifest.mv2.json`; the release script and the release workflow
-  bump it and keep `package.json` and `package-lock.json` in sync with it.
+- Latest release:
+  [Releases](https://github.com/berkaykrc/ragebait-x/releases/latest). The
+  version of record is `version` in `manifest.mv2.json`; the release script and
+  the release workflow bump it and keep `package.json` and `package-lock.json`
+  in sync with it.
 - Modes: heuristic, proxy, and BYOK (`MODEL_VERSION = "h1"`,
-  `FEATURE_VERSION = "f1"`)
+  `FEATURE_VERSION = "f1"`). Proxy mode uses the public endpoint
+  `https://ragebait-proxy.dontseemyass.workers.dev/analyze` by default. The
+  options page can point it at your own Worker.
 - Browser: Firefox (MV2) and Chrome (MV3) — `npm run build` emits both roots.
-  Firefox releases are signed via the release workflow; Chrome MV3 has no store
-  or publish step, so the `ragebait-detector-mv3.zip` release asset (or a local
-  `dist-mv3/`) is the distributable today.
+  Firefox releases are signed via the release workflow. Chrome MV3 has no store
+  or publish step, so the `ragebait-detector-mv3.zip` release asset is the
+  distributable.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
+
+## Install
+
+The extension works on x.com and twitter.com in a desktop browser. The download
+links below point at the latest GitHub Release, so they need a public repository
+to resolve.
+
+### Firefox
+
+1. Download
+   [`ragebait-detector.xpi`](https://github.com/berkaykrc/ragebait-x/releases/latest/download/ragebait-detector.xpi).
+2. Open `about:addons` in Firefox.
+3. Click the gear icon and choose "Install Add-on From File".
+4. Select the downloaded `.xpi`.
+
+The build is signed by AMO and released as an unlisted add-on, so it installs on
+any Firefox build and does not appear in the AMO search. Firefox reads
+`updates.json` on its own, so new versions install themselves.
+
+### Chrome
+
+1. Download
+   [`ragebait-detector-mv3.zip`](https://github.com/berkaykrc/ragebait-x/releases/latest/download/ragebait-detector-mv3.zip).
+2. Extract it.
+3. Open `chrome://extensions` and turn on Developer mode.
+4. Click "Load unpacked" and select the extracted folder.
+
+There is no Chrome Web Store listing and no update path. After a new release,
+download the zip again and load it over the existing folder.
 
 ## How it works
 
@@ -116,12 +152,9 @@ Then load the root for your browser:
 
 Unsigned builds run on Nightly / Developer Edition / unbranded builds only. That
 is the local development path: `dist-mv2/manifest.json` is loaded as a temporary
-add-on and disappears when Firefox closes. A permanent install on release
-Firefox needs the signed `.xpi` attached to the GitHub Release
-(`npm run release` starts CI signing; nothing is signed locally). Permanent
-installs update from `releases/latest/download/updates.json` (see `update_url`
-in the manifest). Chrome has no update path yet: use the
-`ragebait-detector-mv3.zip` release asset or load `dist-mv3/` unpacked.
+add-on and disappears when Firefox closes. Nothing is signed locally. A
+permanent install comes from the signed `.xpi` in the GitHub Release. See
+[Install](#install) for the release install path.
 
 ## Privacy
 
@@ -130,9 +163,11 @@ in the manifest). Chrome has no update path yet: use the
   the handle is sent immediately on hover, and in heuristic mode this fetch is
   the only off-device call. The options page carries a data notice in every
   mode; the AI modes add the endpoint notice.
-- Heuristic mode keeps AI processing local. Proxy and BYOK modes require the
-  data-handling notice to be accepted before sending feature state and sampled
-  reply text to the selected endpoint.
+- Heuristic mode uses no AI. The band is computed inside the extension from the
+  fetched replies, and no reply text is sent to a model or to the Worker. The
+  FxTwitter fetch is the only off-device call in this mode. Proxy and BYOK modes
+  require the data-handling notice to be accepted before sending feature state
+  and sampled reply text to the selected endpoint.
 - In proxy or BYOK mode, reply snippets have third-party `@username` handles
   scrubbed to `@…`, full `http(s)://` URLs replaced with `[link]`, and
   email-like addresses best-effort replaced with `[email]` before transmission.
@@ -202,15 +237,25 @@ records associated with a forgeable public identifier.
 
 - `npm run check` - all gates in order: `lint:js` -> `fmt:check` -> `build` ->
   `check:artifacts` -> `lint` -> `test`.
-- `npm run build` - esbuild both build roots.
+- `npm run build` - esbuild both build roots (`dist-mv2/` and `dist-mv3/`).
 - `npm run check:artifacts` - fail if built artifacts contain credential-shaped
   values.
-- `npm run lint` - web-ext lint on `dist-mv2/`.
+- `npm run lint` - web-ext lint on `dist-mv2/` plus the dual-manifest test.
+- `npm run lint:mv3` - the dual-manifest test on its own.
 - `npm run lint:js` - Deno lint.
 - `npm run fmt` / `npm run fmt:check` - Deno format.
-- `npm test` - Node test runner (requires `npm run build` first; two tests read
-  `dist-mv2/` off disk).
-- `npm run package` - produces `web-ext-artifacts/*.zip`.
+- `npm test` - Node test runner for the extension and the Worker (requires
+  `npm run build` first; two test files read the built roots off disk).
+- `npm run package` - `web-ext build` on `dist-mv2/`, writes
+  `web-ext-artifacts/*.zip`.
+- `npm run package:mv3` - packages `dist-mv3/` as
+  `web-ext-artifacts/ragebait-detector-mv3.zip`.
+- `npm run icons` - regenerate the PNG icons and the mark.
+- `npm run deploy:production` / `npm run deploy:staging` - deploy the Worker
+  with `wrangler` (see `docs/release.md`).
+- `npm run release` - bump the version, commit, tag, and push. The tag starts
+  the release workflow, which signs with AMO and attaches the release assets.
+  Usage: `npm run release patch|minor|major|x.y.z`.
 
 ## Contributing
 
@@ -228,22 +273,7 @@ Notes for contributors:
   world only. Never bundle it into `page.js`.
 - The page world may request a score; it may never supply one.
 - Weights in `src/analysis/compose.js` are placeholders; do not tune them by
-  hand (calibration is Plan 3).
-
-## Roadmap
-
-- **Plan 2 - AI layer**: complete for the Worker proxy path; BYOK support and
-  diagnostics are also wired in the extension.
-- **Plan 3 - Calibration**: labelled set, reliability report, and enabling the
-  numeric percent in the hovercard through the Worker's `showNumber` gate.
-- **Phase 4 - Compliance & release**: AMO submission, first-run consent screen,
-  `data_collection_permissions` declaration, signed `.xpi`, `update_url`, real
-  gecko id.
-- **Phase 5 - Deep mode (deferred)**: `UserByScreenName` /
-  `UserRepliesTimeline`, transaction signing, DOM enrichment.
-
-Out of scope for v1: mobile Firefox, deep mode, a third AI tier, target-account
-size asymmetry, bundled local model, multi-device sync.
+  hand (calibration is not finished).
 
 ## License
 
