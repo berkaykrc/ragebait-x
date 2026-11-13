@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  isNoTerminalError,
   isValidVersion,
   nextVersion,
+  readConfirmation,
   syncPackageVersion,
   writeManifestVersion,
 } from "../../scripts/release.mjs";
@@ -28,6 +30,24 @@ test("nextVersion bumps patch, minor, major, or accepts an explicit version", ()
 test("nextVersion rejects a malformed bump", () => {
   assert.throws(() => nextVersion("0.1.1", "latest"), /malformed bump/);
   assert.throws(() => nextVersion("0.1", "patch"), /malformed current version/);
+});
+
+test("readConfirmation accepts only y or yes", () => {
+  assert.equal(readConfirmation("y\n"), true);
+  assert.equal(readConfirmation("Y\n"), true);
+  assert.equal(readConfirmation("yes\n"), true);
+  assert.equal(readConfirmation("  YES  \n"), true);
+  assert.equal(readConfirmation("n\n"), false);
+  assert.equal(readConfirmation("\n"), false);
+  assert.equal(readConfirmation(""), false);
+});
+
+test("isNoTerminalError recognises a stdin without a terminal", () => {
+  assert.equal(isNoTerminalError({ code: "EAGAIN" }), true);
+  assert.equal(isNoTerminalError({ code: "ENXIO" }), true);
+  assert.equal(isNoTerminalError({ code: "ENOENT" }), false);
+  assert.equal(isNoTerminalError(new Error("boom")), false);
+  assert.equal(isNoTerminalError(undefined), false);
 });
 
 test("syncPackageVersion updates package.json and package-lock.json", async () => {

@@ -115,10 +115,38 @@ function tagExists(tag) {
   }
 }
 
+/**
+ * True for a confirmation answer.
+ *
+ * Only an explicit "y" or "yes" confirms. Everything else, including an empty
+ * answer, declines.
+ */
+export function readConfirmation(raw) {
+  const answer = String(raw).trim().toLowerCase();
+  return answer === "y" || answer === "yes";
+}
+
+/**
+ * True when reading stdin failed because there is no terminal behind it.
+ *
+ * A pipe, a closed handle, or a non-interactive shell makes readFileSync(0)
+ * throw EAGAIN or ENXIO. The release must then ask for --yes instead of
+ * printing a stack trace.
+ */
+export function isNoTerminalError(error) {
+  return error?.code === "EAGAIN" || error?.code === "ENXIO";
+}
+
 function prompt(question) {
   process.stdout.write(`${question} `);
-  const answer = readFileSync(0, "utf8").trim().toLowerCase();
-  return answer === "y" || answer === "yes";
+  let raw;
+  try {
+    raw = readFileSync(0, "utf8");
+  } catch (error) {
+    if (isNoTerminalError(error)) return null;
+    throw error;
+  }
+  return readConfirmation(raw);
 }
 
 function main() {
@@ -166,9 +194,19 @@ function main() {
       `  3. push, which triggers CI to sign and attach the .xpi\n\n`,
   );
 
-  if (!assumeYes && !prompt("release this version? [y/N]")) {
-    process.stdout.write("aborted\n");
-    process.exit(1);
+  if (!assumeYes) {
+    const confirmed = prompt("release this version? [y/N]");
+    if (confirmed === null) {
+      process.stderr.write(
+        "error: no terminal to read the confirmation from.\n" +
+          "Run the release with --yes: npm run release <bump> -- --yes\n",
+      );
+      process.exit(1);
+    }
+    if (!confirmed) {
+      process.stdout.write("aborted\n");
+      process.exit(1);
+    }
   }
 
   syncPackageVersion(next);
