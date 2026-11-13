@@ -66,16 +66,18 @@ export function createBridge({ win, browserApi, getOrigin, getToken }) {
       // path. browser.runtime.sendMessage FROM the background cannot reach
       // content-script onMessage listeners — that path is for push-style
       // duplicated responses only (see onRuntimeMessage below).
-      void Promise.resolve(
-        browserApi.runtime.sendMessage({
-          type: "rb:score-request",
-          handle: parsed.handle,
-          token: parsed.token,
-        }),
-      ).then(
-        (response) => postResponse(win, getOrigin, getToken, response),
-        () => {/* background unavailable; page stays on "analyzing…" */},
-      );
+      void (async () => {
+        try {
+          const response = await browserApi.runtime.sendMessage({
+            type: "rb:score-request",
+            handle: parsed.handle,
+            token: parsed.token,
+          });
+          postResponse(win, getOrigin, getToken, response);
+        } catch {
+          // background unavailable; page stays on "analyzing…"
+        }
+      })();
       return;
     }
 

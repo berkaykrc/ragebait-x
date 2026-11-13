@@ -778,16 +778,23 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   if (storage) {
     // Boot sweep: prune old stats counters. A prune failure must never crash
     // the background; the next boot retries.
-    void pruneOldDailyStats(storage).catch((err) => {
-      console.warn("ragebait:bg: stats prune failed:", err);
-    });
+    void (async () => {
+      try {
+        await pruneOldDailyStats(storage);
+      } catch (err) {
+        console.warn("ragebait:bg: stats prune failed:", err);
+      }
+    })();
   }
 
   // getInstallToken and the config cache speak the items-shaped storage
   // dialect used by browser.storage.local (get(keys) -> Record,
   // set(items)), so adapt the (key, value) seam to it once.
   const itemsStorage = storage && {
-    get: (key) => storage.get(key).then((value) => ({ [key]: value })),
+    async get(key) {
+      const value = await storage.get(key);
+      return { [key]: value };
+    },
     set: (items) =>
       Promise.all(
         Object.entries(items).map(([k, v]) => storage.set(k, v)),
@@ -803,39 +810,48 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   // trust fix. Outliving the browser session is fine for a public id.
   const SESSION_TOKEN_KEY = "session_token";
   let sessionTokenPromise = null;
-  const resolveSessionToken = () => {
-    if (!sessionTokenPromise) {
-      sessionTokenPromise = (async () => {
-        // No storage at all: one token per worker instance is the best we can
-        // do, and retrying would only mint a new one on every call.
-        if (!storage) return { token: generateToken(), keep: true };
-        try {
-          const stored = await storage.get(SESSION_TOKEN_KEY);
-          if (typeof stored === "string" && stored.length > 0) {
-            return { token: stored, keep: true };
-          }
-        } catch {
-          // Transient read failure: fall back for this call, retry next time.
-          return { token: generateToken(), keep: false };
-        }
-        const fresh = generateToken();
-        try {
-          await storage.set(SESSION_TOKEN_KEY, fresh);
-          return { token: fresh, keep: true };
-        } catch {
-          // Write failure: the token never left memory. Keep this one for the
-          // worker's lifetime so live tabs and later rb:config callers still
-          // agree; only a failed READ is worth retrying.
-          return { token: fresh, keep: true };
-        }
-      })().then((res) => {
-        // Only pin a result the storage actually confirmed; a failed read must
-        // not freeze a random token for the rest of this worker's life.
-        if (!res.keep) sessionTokenPromise = null;
-        return res.token;
-      });
+
+  const readOrGenerateToken = async () => {
+    // No storage at all: one token per worker instance is the best we can
+    // do, and retrying would only mint a new one on every call.
+    if (!storage) return { token: generateToken(), keep: true };
+    try {
+      const stored = await storage.get(SESSION_TOKEN_KEY);
+      if (typeof stored === "string" && stored.length > 0) {
+        return { token: stored, keep: true };
+      }
+    } catch {
+      // Transient read failure: fall back for this call, retry next time.
+      return { token: generateToken(), keep: false };
     }
-    return sessionTokenPromise;
+    const fresh = generateToken();
+    try {
+      await storage.set(SESSION_TOKEN_KEY, fresh);
+    } catch {
+      // Write failure: the token never left memory. Keep this one for the
+      // worker's lifetime so live tabs and later rb:config callers still
+      // agree; only a failed READ is worth retrying.
+    }
+    return { token: fresh, keep: true };
+  };
+
+  const resolveSessionToken = async () => {
+    if (!sessionTokenPromise) {
+      sessionTokenPromise = readOrGenerateToken();
+    }
+    const inFlight = sessionTokenPromise;
+    try {
+      const result = await inFlight;
+      if (!result?.keep && sessionTokenPromise === inFlight) {
+        sessionTokenPromise = null;
+      }
+      return result?.token ?? generateToken();
+    } catch {
+      if (sessionTokenPromise === inFlight) {
+        sessionTokenPromise = null;
+      }
+      return generateToken();
+    }
   };
 
   // Load the saved settings and the install token fresh for every score
@@ -874,9 +890,13 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   // Boot sweep: remove expired cache entries for handles that are never
   // re-hovered. Best-effort; never blocks the background.
   if (typeof bg.sweepCache === "function") {
-    void Promise.resolve(bg.sweepCache()).catch((err) => {
-      console.warn("ragebait:bg: cache sweep failed:", err);
-    });
+    void (async () => {
+      try {
+        await bg.sweepCache();
+      } catch (err) {
+        console.warn("ragebait:bg: cache sweep failed:", err);
+      }
+    })();
   }
 
   // Boot line: proves the new background is actually running after a reload.
@@ -890,36 +910,29 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
   );
 
   browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    const p = (async () => {
-      if (
-        message && typeof message === "object" &&
-        (message.type === "rb:score-request" ||
-          message.type === "rb:score-refresh" ||
-          message.type === "rb:config")
-      ) {
-        const extra = await requestDeps();
-        if (message.type === "rb:score-request") {
-          return bg.handleMessage(message, sender, extra);
+    void (async () => {
+      try {
+        let res;
+        if (
+          message && typeof message === "object" &&
+          (message.type === "rb:score-request" ||
+            message.type === "rb:score-refresh" ||
+            message.type === "rb:config")
+        ) {
+          const extra = await requestDeps();
+          res = await bg.handleMessage(message, sender, extra);
+        } else {
+          res = await bg.handleMessage(message, sender);
         }
-        return bg.handleMessage(message, sender, extra);
-      }
-      return bg.handleMessage(message, sender);
-    })();
-    if (p && typeof p.then === "function") {
-      p.then((res) => {
         try {
           if (sendResponse) sendResponse(res);
         } catch { /* ignore */ }
-      }).catch(() => {
+      } catch {
         try {
           if (sendResponse) sendResponse(null);
         } catch { /* ignore */ }
-      });
-    } else {
-      try {
-        if (sendResponse) sendResponse(p);
-      } catch { /* ignore */ }
-    }
+      }
+    })();
     return true;
   });
 

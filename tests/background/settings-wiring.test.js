@@ -207,6 +207,49 @@ test("wiring: a transient token-storage failure does not pin a random token", as
   );
 });
 
+test("wiring: concurrent rb:config callers during transient read failure receive the same token", async () => {
+  const store = new Map();
+  let sessionReads = 0;
+  const api = makeBrowserApi(store);
+  api.storage.local = {
+    get: async (key) => {
+      if (key !== "session_token") return {};
+      sessionReads += 1;
+      // Yield to let concurrent callers enqueue before rejecting.
+      await new Promise((r) => setTimeout(r, 5));
+      if (sessionReads === 1) throw new Error("transient");
+      return { session_token: "rb-persisted" };
+    },
+    set: (items) => {
+      for (const [k, v] of Object.entries(items)) store.set(k, v);
+      return Promise.resolve();
+    },
+  };
+
+  wireBrowserRuntime(api, {});
+  const listener = api.listeners[0];
+
+  const [first, second] = await Promise.all([
+    callListener(listener, { type: "rb:config" }),
+    callListener(listener, { type: "rb:config" }),
+  ]);
+
+  assert.equal(typeof first.token, "string");
+  assert.equal(
+    first.token,
+    second.token,
+    "concurrent callers awaiting in-flight resolution must get the same token",
+  );
+  assert.notEqual(first.token, "rb-persisted");
+
+  const third = await callListener(listener, { type: "rb:config" });
+  assert.equal(
+    third.token,
+    "rb-persisted",
+    "subsequent call retries storage after transient failure",
+  );
+});
+
 test("wiring: a token-write failure keeps one fallback token for the worker", async () => {
   // Storage accepts reads but rejects writes. The minted token never reaches
   // disk, but it must stay stable for this worker: live tabs hold the value

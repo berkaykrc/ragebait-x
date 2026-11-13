@@ -59,9 +59,14 @@ export function bootContent({ doc, win, browserApi }) {
     (doc.head ?? doc.documentElement).appendChild(pageScript);
   };
 
-  void Promise.resolve(
-    browserApi.runtime.sendMessage({ type: "rb:config" }),
-  ).then(provisionPageWorld, () => provisionPageWorld(undefined));
+  void (async () => {
+    try {
+      const res = await browserApi.runtime.sendMessage({ type: "rb:config" });
+      provisionPageWorld(res);
+    } catch {
+      provisionPageWorld(undefined);
+    }
+  })();
 
   // Settings changed -> tell the page world, with the token echoed.
   browserApi.storage.onChanged.addListener((changes, area) => {

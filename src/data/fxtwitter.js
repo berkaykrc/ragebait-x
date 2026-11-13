@@ -15,15 +15,24 @@ function sleeperFactory(sleepImpl, signal) {
   const sleepFn = sleepImpl ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   return async (ms) => {
     if (signal?.aborted) return;
-    await Promise.race([
-      Promise.resolve().then(() => sleepFn(ms)),
-      new Promise((_, reject) => {
-        if (!signal) return;
-        if (signal.aborted) return reject(new Error("aborted"));
-        const onAbort = () => reject(new Error("aborted"));
-        signal.addEventListener("abort", onAbort, { once: true });
-      }),
-    ]).catch(() => {});
+    let onAbort;
+    try {
+      await Promise.race([
+        (async () => await sleepFn(ms))(),
+        new Promise((_, reject) => {
+          if (!signal) return;
+          if (signal.aborted) return reject(new Error("aborted"));
+          onAbort = () => reject(new Error("aborted"));
+          signal.addEventListener("abort", onAbort, { once: true });
+        }),
+      ]);
+    } catch {
+      // Abort or sleep failure handled silently.
+    } finally {
+      if (signal && onAbort) {
+        signal.removeEventListener?.("abort", onAbort);
+      }
+    }
   };
 }
 

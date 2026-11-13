@@ -149,3 +149,42 @@ test("fxtwitter: (i) aborted signal -> network with collected replies", async ()
   assert.equal(r.reason, "network");
   assert.equal(r.replies.length, 2);
 });
+
+test("fxtwitter: (j) sleeperFactory cleans up abort listener when sleep wins", async () => {
+  const controller = new AbortController();
+  let addCount = 0;
+  let removeCount = 0;
+  const origAdd = controller.signal.addEventListener.bind(controller.signal);
+  const origRemove = controller.signal.removeEventListener.bind(
+    controller.signal,
+  );
+  controller.signal.addEventListener = (...args) => {
+    addCount += 1;
+    return origAdd(...args);
+  };
+  controller.signal.removeEventListener = (...args) => {
+    removeCount += 1;
+    return origRemove(...args);
+  };
+
+  let calls = 0;
+  const fetchImpl = () => {
+    calls += 1;
+    if (calls === 1) return resp(404, { code: 404 });
+    return resp(200, { results: makeReplies(1), cursor: {} });
+  };
+  const sleepImpl = async () => {};
+  const r = await fetchReplies("h", {
+    fetchImpl,
+    sleepImpl,
+    signal: controller.signal,
+  });
+
+  assert.equal(r.ok, true);
+  assert.ok(addCount > 0, "abort listener was attached during sleep");
+  assert.equal(
+    removeCount,
+    addCount,
+    "abort listener was removed when sleep won",
+  );
+});
