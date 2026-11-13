@@ -2,6 +2,68 @@ import { extractProfileReplies } from "./parse.js";
 
 const BASE = "https://api.fxtwitter.com/2/profile";
 
+/**
+ * Read a JSON body without throwing.
+ *
+ * @param {any} response
+ * @returns {Promise<object|null>}
+ */
+async function readJsonSafe(response) {
+  try {
+    if (!response || typeof response.json !== "function") return null;
+    const value = await response.json();
+    return value && typeof value === "object" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Does this body say that the account does not exist?
+ *
+ * Only the profile endpoint says it. The timeline endpoint answers 404 with
+ * the same empty body for a missing account and for a timeline it cannot
+ * read.
+ *
+ * @param {any} body
+ * @returns {boolean}
+ */
+function isUserNotFound(body) {
+  const message = body?.message;
+  return typeof message === "string" && /user not found/i.test(message);
+}
+
+/**
+ * Ask the profile endpoint whether the account does not exist.
+ *
+ * The profile endpoint fails now and then too, so one answer is not proof:
+ * ask twice before you call the account missing. Any other failure means the
+ * account may exist.
+ *
+ * @param {string} handle
+ * @param {Function} fetchImpl
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<boolean>} true when the account does not exist
+ */
+async function accountIsMissing(handle, fetchImpl, signal) {
+  const url = `${BASE}/${encodeURIComponent(handle)}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let response;
+    try {
+      response = await fetchImpl(url, signal ? { signal } : undefined);
+    } catch {
+      return false;
+    }
+    if (response && response.ok) return false;
+    if (!response || response.status !== 404) return false;
+    const body = await readJsonSafe(response);
+    // An empty 404 means the timeline could not be read, not that the
+    // account is gone.
+    if (!isUserNotFound(body)) return false;
+  }
+  return true;
+}
+
 function parseRetryAfter(value) {
   if (value == null) return null;
   const n = Number(value);
@@ -36,6 +98,47 @@ function sleeperFactory(sleepImpl, signal) {
   };
 }
 
+/**
+ * Map a documented FxTwitter status code to a failure reason.
+ *
+ * The HTTP status already mirrors `code` on this API, so this is a defensive
+ * check for a body that reports an error while the transport says 200.
+ *
+ * @param {number} code
+ * @returns {"unavailable"|"rate_limit"|"network"}
+ */
+function reasonForCode(code) {
+  if (code === 404) return "unavailable";
+  if (code === 429) return "rate_limit";
+  return "network";
+}
+
+/**
+ * Apply the shared failure rule: an empty "unavailable" result asks the
+ * profile endpoint whether the account exists at all.
+ *
+ * @param {string} reason
+ * @param {Array<object>} replies
+ * @param {string} handle
+ * @param {Function} safeFetch
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{ok:false,reason:string,replies:Array<object>}>}
+ */
+async function handlePageFailure(reason, replies, handle, safeFetch, signal) {
+  if (reason === "unavailable" && replies.length === 0) {
+    // No replies came in. Ask the profile endpoint whether the account
+    // exists at all. If replies came in, the account exists, so the
+    // reason stays "unavailable".
+    const missing = await accountIsMissing(handle, safeFetch, signal);
+    return {
+      ok: false,
+      reason: missing ? "not_found" : "unavailable",
+      replies,
+    };
+  }
+  return { ok: false, reason, replies };
+}
+
 async function fetchPage(url, fetchImpl, signal, sleep) {
   let attempt = 0;
   while (true) {
@@ -64,6 +167,15 @@ async function fetchPage(url, fetchImpl, signal, sleep) {
     const status = response ? response.status : 0;
 
     if (status === 404) {
+      const body = await readJsonSafe(response);
+      if (isUserNotFound(body)) {
+        const e = new Error("not_found");
+        e.reason = "not_found";
+        throw e;
+      }
+      // The body is empty. The account may exist, but FxTwitter cannot read
+      // the timeline now. Retry, then report "unavailable" and keep the
+      // replies that came in.
       if (attempt <= 2) {
         await sleep(attempt === 1 ? 500 : 1000);
         if (signal?.aborted) {
@@ -73,8 +185,8 @@ async function fetchPage(url, fetchImpl, signal, sleep) {
         }
         continue;
       }
-      const e = new Error("not_found");
-      e.reason = "not_found";
+      const e = new Error("unavailable");
+      e.reason = "unavailable";
       throw e;
     }
 
@@ -136,7 +248,13 @@ export async function fetchReplies(handle, deps = {}) {
       try {
         response = await fetchPage(url, safeFetch, signal, sleep);
       } catch (err) {
-        return { ok: false, reason: err?.reason || "network", replies };
+        return await handlePageFailure(
+          err?.reason || "network",
+          replies,
+          handle,
+          safeFetch,
+          signal,
+        );
       }
 
       let json;
@@ -151,11 +269,26 @@ export async function fetchReplies(handle, deps = {}) {
         return { ok: false, reason: "malformed", replies };
       }
 
+      // The docs say every response carries `code`. On this API the HTTP
+      // status mirrors it, but a body can still report an error while the
+      // transport says 200. Treat a non-200 `code` as the failure it is.
+      const code = typeof json.code === "number" && Number.isFinite(json.code)
+        ? Math.trunc(json.code)
+        : null;
+      if (code !== null && code !== 200) {
+        return await handlePageFailure(
+          reasonForCode(code),
+          replies,
+          handle,
+          safeFetch,
+          signal,
+        );
+      }
+
       const pageReplies = extractProfileReplies(json, handle);
       replies = replies.concat(pageReplies);
 
-      const next = json?.cursor?.bottom ?? json?.cursor?.next ??
-        json?.cursor?.cursor ?? null;
+      const next = json?.cursor?.bottom ?? null;
       if (replies.length >= 5) break;
       if (!next) break;
       cursor = next;

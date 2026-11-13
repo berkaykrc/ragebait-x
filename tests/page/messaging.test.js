@@ -150,12 +150,12 @@ test("messaging: sendScoreRequest emits the request triple through postMessage",
 
   // Mixed case on purpose: normalisation is the extension gate's job, the
   // page world forwards the handle it read.
-  messaging.sendScoreRequest("Yoksiktir");
+  messaging.sendScoreRequest("Jack");
 
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].data, {
     type: "rb:score-request",
-    handle: "Yoksiktir",
+    handle: "Jack",
     token: TOKEN,
   });
   assert.equal(posted[0].origin, ORIGIN);
@@ -169,12 +169,12 @@ test("messaging: sendRefresh emits rb:score-refresh", () => {
     getOrigin: () => ORIGIN,
   });
 
-  messaging.sendRefresh("yoksiktir");
+  messaging.sendRefresh("jack");
 
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].data, {
     type: "rb:score-refresh",
-    handle: "yoksiktir",
+    handle: "jack",
     token: TOKEN,
   });
 });
@@ -187,12 +187,12 @@ test("messaging: sendCancel emits rb:score-cancel", () => {
     getOrigin: () => ORIGIN,
   });
 
-  messaging.sendCancel("yoksiktir");
+  messaging.sendCancel("jack");
 
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].data, {
     type: "rb:score-cancel",
-    handle: "yoksiktir",
+    handle: "jack",
     token: TOKEN,
   });
 });
@@ -205,9 +205,9 @@ test("messaging: nothing is emitted without a token", () => {
     getOrigin: () => ORIGIN,
   });
 
-  messaging.sendScoreRequest("yoksiktir");
-  messaging.sendRefresh("yoksiktir");
-  messaging.sendCancel("yoksiktir");
+  messaging.sendScoreRequest("jack");
+  messaging.sendRefresh("jack");
+  messaging.sendCancel("jack");
 
   assert.equal(posted.length, 0);
 });
@@ -239,7 +239,7 @@ test("messaging: carriesScoreField flags result/band/percent at any depth", () =
   );
   // The KEY is score-bearing, not the value.
   assert.equal(carriesScoreField({ a: { b: "band" } }), false);
-  assert.equal(carriesScoreField({ handle: "yoksiktir", token: "t" }), false);
+  assert.equal(carriesScoreField({ handle: "jack", token: "t" }), false);
   assert.equal(carriesScoreField("high"), false);
   assert.equal(carriesScoreField(null), false);
 
@@ -255,7 +255,7 @@ test("messaging: carriesScoreField flags result/band/percent at any depth", () =
 test("messaging: an emitted request survives the extension-world trust gate end to end", () => {
   const relay = makeRelay();
 
-  relay.messaging.sendScoreRequest("Yoksiktir");
+  relay.messaging.sendScoreRequest("Jack");
   assert.equal(relay.posted.length, 1);
 
   // The content script receives the page's postMessage as a window event.
@@ -265,7 +265,7 @@ test("messaging: an emitted request survives the extension-world trust gate end 
   assert.deepEqual(relay.sent[0], {
     type: "rb:score-request",
     // Lower-cased by the gate (parseScoreRequest), never by the page.
-    handle: "yoksiktir",
+    handle: "jack",
     token: TOKEN,
   });
 });
@@ -276,7 +276,7 @@ test("messaging: a payload carrying band/percent/result is rejected outright", (
   // Nested to try to slip past a top-level-only check.
   relay.dispatch({
     type: SCORE_REQUEST_TYPE,
-    handle: "yoksiktir",
+    handle: "jack",
     token: TOKEN,
     meta: { deep: { result: { band: "high" } } },
   });
@@ -295,7 +295,7 @@ test("messaging: an unknown type is ignored without a runtime.sendMessage call",
   const seen = [];
   relay.messaging.onScoreResult((m) => seen.push(m));
 
-  relay.dispatch({ type: "rb:weird", token: TOKEN, handle: "yoksiktir" });
+  relay.dispatch({ type: "rb:weird", token: TOKEN, handle: "jack" });
 
   // Neither half moves: the extension bridge never reaches runtime.sendMessage...
   assert.equal(relay.sent.length, 0);
@@ -319,7 +319,7 @@ test("messaging: onScoreResult delivers score responses with a lower-cased handl
 
   dispatch({
     type: PAGE_SCORE_RESPONSE_TYPE,
-    handle: "Yoksiktir",
+    handle: "Jack",
     result: { state: "result", band: "low", percent: 10 },
   });
   dispatch({ type: "rb:config", token: TOKEN, config: {} });
@@ -327,14 +327,14 @@ test("messaging: onScoreResult delivers score responses with a lower-cased handl
 
   assert.equal(seen.length, 1);
   assert.deepEqual(seen[0], {
-    handle: "yoksiktir",
+    handle: "jack",
     result: { state: "result", band: "low", percent: 10 },
   });
 
   off();
   assert.equal(listeners.length, 0, "unsubscribe removes the listener");
 
-  dispatch({ type: PAGE_SCORE_RESPONSE_TYPE, handle: "yoksiktir", result: {} });
+  dispatch({ type: PAGE_SCORE_RESPONSE_TYPE, handle: "jack", result: {} });
   assert.equal(seen.length, 1);
 });
 
@@ -368,10 +368,10 @@ test("messaging: opening a card sends exactly one score request for its handle",
   });
 
   doc.querySelector("#layers").appendChild(doc.createElement("div"))
-    .innerHTML = cardHtml("yoksiktir");
+    .innerHTML = cardHtml("jack");
   await flush();
 
-  assert.deepEqual(spies.requests, ["yoksiktir"]);
+  assert.deepEqual(spies.requests, ["jack"]);
   assert.deepEqual(spies.cancels, []);
   observer.dispose();
 });
@@ -388,10 +388,10 @@ test("messaging: clicking the line emits a refresh and resets it to loading", as
   });
 
   doc.querySelector("#layers").appendChild(doc.createElement("div"))
-    .innerHTML = cardHtml("yoksiktir");
+    .innerHTML = cardHtml("jack");
   await flush();
 
-  const entry = observer.cards.get("yoksiktir");
+  const entry = observer.cards.get("jack");
   entry.line = applyState(entry.line, {
     state: "result",
     band: "high",
@@ -402,7 +402,7 @@ test("messaging: clicking the line emits a refresh and resets it to loading", as
   entry.line.dispatchEvent(
     new doc.defaultView.MouseEvent("click", { bubbles: true }),
   );
-  assert.deepEqual(spies.refreshes, ["yoksiktir"]);
+  assert.deepEqual(spies.refreshes, ["jack"]);
   assert.match(entry.line.textContent, /analyzing/);
 
   // The click listener is delegated on the document, so it survives
@@ -437,12 +437,12 @@ test("messaging: closing the card aborts the request and emits exactly one rb:sc
 
   const wrapper = doc.createElement("div");
   doc.querySelector("#layers").appendChild(wrapper).innerHTML = cardHtml(
-    "yoksiktir",
+    "jack",
   );
   await flush();
 
-  assert.deepEqual(spies.requests, ["yoksiktir"]);
-  const entry = observer.cards.get("yoksiktir");
+  assert.deepEqual(spies.requests, ["jack"]);
+  const entry = observer.cards.get("jack");
   assert.equal(entry.controller.signal.aborted, false);
 
   // The card leaves the DOM inside a removed ancestor ("removedNodes
@@ -450,9 +450,9 @@ test("messaging: closing the card aborts the request and emits exactly one rb:sc
   wrapper.remove();
   await flush();
 
-  assert.deepEqual(spies.cancels, ["yoksiktir"]);
+  assert.deepEqual(spies.cancels, ["jack"]);
   assert.equal(entry.controller.signal.aborted, true);
-  assert.equal(observer.cards.has("yoksiktir"), false);
+  assert.equal(observer.cards.has("jack"), false);
 
   // Another removal batch must not emit a second cancel for the same card.
   doc.querySelector("#layers")?.firstElementChild?.remove();
@@ -474,7 +474,7 @@ test("messaging: a card detached and re-attached in one turn is a move, not a cl
   });
 
   const card = doc.createElement("div");
-  card.innerHTML = cardHtml("yoksiktir");
+  card.innerHTML = cardHtml("jack");
   doc.querySelector("#layers").appendChild(card);
   await flush();
 
@@ -484,7 +484,7 @@ test("messaging: a card detached and re-attached in one turn is a move, not a cl
 
   // Still connected when the observer runs -> no cancel, entry kept.
   assert.deepEqual(spies.cancels, []);
-  assert.equal(observer.cards.has("yoksiktir"), true);
+  assert.equal(observer.cards.has("jack"), true);
   assert.equal(doc.querySelectorAll(".ragebait-line").length, 1);
 
   observer.dispose();
@@ -510,13 +510,13 @@ test("messaging: the default bridge sends the request when the config tag has a 
   });
 
   doc.querySelector("#layers").appendChild(doc.createElement("div"))
-    .innerHTML = cardHtml("yoksiktir");
+    .innerHTML = cardHtml("jack");
   await flush();
 
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].data, {
     type: "rb:score-request",
-    handle: "yoksiktir",
+    handle: "jack",
     token: "tok-1",
   });
   assert.equal(posted[0].origin, ORIGIN);
@@ -540,10 +540,10 @@ test("messaging: a result for an unknown handle never touches the open lines", a
 
   const layers = doc.querySelector("#layers");
   layers.appendChild(doc.createElement("div")).innerHTML = cardHtml(
-    "yoksiktir",
+    "jack",
   );
   layers.appendChild(doc.createElement("div")).innerHTML = cardHtml(
-    "otheruser",
+    "elonmusk",
   );
   await flush();
 

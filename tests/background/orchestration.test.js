@@ -49,7 +49,7 @@ function okFetch(replies) {
       json: () => ({
         results: replies.map((r) => ({
           author: { screen_name: "h" },
-          replying_to: { screen_name: "target" },
+          replying_to: { screen_name: "target", status: "parent" },
           text: r.text,
           lang: r.lang,
           likes: r.likes,
@@ -246,7 +246,7 @@ test("background: cancel releases dedupe", async () => {
       json: () => ({
         results: makeReplies(6).map((r) => ({
           author: { screen_name: "h" },
-          replying_to: { screen_name: "target" },
+          replying_to: { screen_name: "target", status: "parent" },
           text: r.text,
           lang: r.lang,
           likes: r.likes,
@@ -370,6 +370,58 @@ test("background: (c4) malformed with 8 replies -> estimated", async () => {
   });
   assert.equal(r.state, "estimated");
   assert.equal(r.heuristic, true);
+});
+
+test("background: unavailable with 6 replies -> estimated", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const replies = makeReplies(6);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "unavailable", replies }),
+  });
+  assert.equal(r.state, "estimated");
+  assert.equal(r.heuristic, true);
+  assert.ok(r.band);
+});
+
+test("background: unavailable with 3 replies -> insufficient", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const replies = makeReplies(3);
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "unavailable", replies }),
+  });
+  assert.equal(r.state, "insufficient");
+});
+
+test("background: unavailable with no replies -> error", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "unavailable", replies: [] }),
+  });
+  assert.equal(r.state, "error");
+});
+
+test("background: a missing account keeps the error state", async () => {
+  const storage = makeStorage();
+  const now = () => 1000;
+  const r = await handleScoreRequest("h", {
+    storage,
+    now,
+    sleepImpl: () => {},
+    fetchReplies: () => ({ ok: false, reason: "not_found", replies: [] }),
+  });
+  assert.equal(r.state, "error");
 });
 
 test("background: (d) fewer than 5 replies -> insufficient", async () => {

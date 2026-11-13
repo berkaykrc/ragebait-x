@@ -9,7 +9,7 @@ function reply(id, extra = {}) {
     id,
     text: `reply ${id}`,
     lang: "tr",
-    targetScreenName: "kviciemre",
+    targetScreenName: "elonmusk",
     parentStatusId: `parent-${id}`,
     likes: 3,
     replyCount: 1,
@@ -21,8 +21,8 @@ function reply(id, extra = {}) {
 
 test("dom-store: record then get returns the stored replies", () => {
   const store = createDomStore();
-  store.record("Yoksiktir", [reply("1"), reply("2")]);
-  assert.deepEqual(store.get("yoksiktir"), [reply("1"), reply("2")]);
+  store.record("Jack", [reply("1"), reply("2")]);
+  assert.deepEqual(store.get("jack"), [reply("1"), reply("2")]);
 });
 
 test("dom-store: get on an unseen handle returns null", () => {
@@ -31,9 +31,9 @@ test("dom-store: get on an unseen handle returns null", () => {
 
 test("dom-store: merge deduplicates by id and prefers the API copy", () => {
   const store = createDomStore();
-  store.record("yoksiktir", [reply("1"), reply("2")]);
+  store.record("jack", [reply("1"), reply("2")]);
 
-  const merged = store.merge("yoksiktir", [
+  const merged = store.merge("jack", [
     { ...reply("2"), likes: 999 }, // conflicts with the stored copy
     reply("3"), // new
   ]);
@@ -47,38 +47,38 @@ test("dom-store: merge deduplicates by id and prefers the API copy", () => {
 
 test("dom-store: merge with no stored replies returns the API replies", () => {
   const store = createDomStore();
-  store.record("yoksiktir", []);
-  assert.deepEqual(store.merge("yoksiktir", [reply("9")]), [reply("9")]);
+  store.record("jack", []);
+  assert.deepEqual(store.merge("jack", [reply("9")]), [reply("9")]);
 });
 
 test("dom-store: records lacking a parent id are stored with parentStatusId null", () => {
   const store = createDomStore();
   const { parentStatusId, ...noParent } = reply("1");
   assert.equal(parentStatusId, "parent-1"); // fixture sanity
-  store.record("yoksiktir", [noParent]);
+  store.record("jack", [noParent]);
 
-  const stored = store.get("yoksiktir");
+  const stored = store.get("jack");
   assert.deepEqual(stored, [{ ...noParent, parentStatusId: null }]);
 });
 
 test("dom-store: record overwrites, never accumulates", () => {
   const store = createDomStore();
-  store.record("yoksiktir", [reply("1")]);
-  store.record("yoksiktir", [reply("2")]);
-  assert.deepEqual(store.get("yoksiktir"), [reply("2")]);
+  store.record("jack", [reply("1")]);
+  store.record("jack", [reply("2")]);
+  assert.deepEqual(store.get("jack"), [reply("2")]);
 });
 
 test("dom-store: a stored record is never mutated by the caller afterwards", () => {
   const store = createDomStore();
   const replies = [reply("1")];
-  store.record("yoksiktir", replies);
+  store.record("jack", replies);
   replies.push(reply("2"));
-  assert.equal(store.get("yoksiktir").length, 1);
+  assert.equal(store.get("jack").length, 1);
 });
 
 test("dom-store: merge tolerates junk without throwing", () => {
   const store = createDomStore();
-  store.record("yoksiktir", [reply("1")]);
-  const merged = store.merge("yoksiktir", [null, "nope", {}, reply("2")]);
+  store.record("jack", [reply("1")]);
+  const merged = store.merge("jack", [null, "nope", {}, reply("2")]);
   assert.deepEqual(merged.map((r) => r.id).sort(), ["1", "2"]);
 });

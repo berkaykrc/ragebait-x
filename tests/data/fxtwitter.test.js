@@ -21,7 +21,7 @@ function makeReplies(n, start = 0) {
     text: "reply",
     lang: "tr",
     author: { screen_name: "h" },
-    replying_to: { screen_name: "target" },
+    replying_to: { screen_name: "target", status: "parent" },
     likes: 1,
     replies: 0,
     views: 1,
@@ -41,11 +41,86 @@ test("fxtwitter: (a) 404 then 200 -> ok", async () => {
   assert.equal(r.ok, true);
 });
 
-test("fxtwitter: (b) 3x 404 -> not_found empty", async () => {
-  const fetchImpl = () => resp(404, { code: 404 });
+test("fxtwitter: (b) a missing account -> not_found empty", async () => {
+  // The profile endpoint is the only place that says "User not found".
+  const fetchImpl = (url) => {
+    if (url.includes("/statuses")) {
+      return resp(404, {
+        code: 404,
+        results: [],
+        cursor: { top: null, bottom: null },
+      });
+    }
+    return resp(404, { code: 404, message: "User not found" });
+  };
   const sleepImpl = async () => {};
   const r = await fetchReplies("h", { fetchImpl, sleepImpl });
   assert.deepEqual(r, { ok: false, reason: "not_found", replies: [] });
+});
+
+test("fxtwitter: (k) an empty 404 body -> unavailable, not not_found", async () => {
+  // FxTwitter answers 404 with an empty body when it cannot read the
+  // timeline. The account itself exists, so the reason is "unavailable".
+  const urls = [];
+  const fetchImpl = (url) => {
+    urls.push(url);
+    if (url.includes("/statuses")) {
+      return resp(404, {
+        code: 404,
+        results: [],
+        cursor: { top: null, bottom: null },
+      });
+    }
+    return resp(200, { code: 200, user: { screen_name: "h" } });
+  };
+  const r = await fetchReplies("h", { fetchImpl, sleepImpl: () => {} });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "unavailable");
+  assert.deepEqual(r.replies, []);
+  assert.ok(
+    urls.some((u) => u.endsWith("/2/profile/h")),
+    "the profile endpoint was asked whether the account exists",
+  );
+});
+
+test("fxtwitter: (l) an empty 404 on page 2 keeps the page 1 replies", async () => {
+  let calls = 0;
+  const fetchImpl = (url) => {
+    if (!url.includes("/statuses")) {
+      return resp(200, { code: 200, user: { screen_name: "h" } });
+    }
+    calls += 1;
+    if (calls === 1) {
+      return resp(200, { results: makeReplies(2), cursor: { bottom: "c1" } });
+    }
+    return resp(404, {
+      code: 404,
+      results: [],
+      cursor: { top: null, bottom: null },
+    });
+  };
+  const r = await fetchReplies("h", { fetchImpl, sleepImpl: () => {} });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "unavailable");
+  assert.equal(r.replies.length, 2);
+});
+
+test("fxtwitter: (m) a 200 body with code 404 is not ok", async () => {
+  // The docs say every response carries `code`. A body reporting an error
+  // while the transport says 200 must be treated as that error, not as ok.
+  const fetchImpl = (url) => {
+    if (url.includes("/statuses")) {
+      return resp(200, {
+        code: 404,
+        results: [],
+        cursor: { top: null, bottom: null },
+      });
+    }
+    return resp(404, { code: 404, message: "User not found" });
+  };
+  const r = await fetchReplies("h", { fetchImpl, sleepImpl: () => {} });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "not_found");
 });
 
 test("fxtwitter: (c) url + paging + missing cursor terminates", async () => {

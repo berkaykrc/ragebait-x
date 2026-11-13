@@ -32,6 +32,13 @@ test("dual build emits the MV2 and MV3 manifest contracts", async () => {
     "https://api.fxtwitter.com/*",
     "https://ragebait-proxy.dontseemyass.workers.dev/*",
   ]);
+  // MV2 has no separate host_permissions key; the FxTwitter host must still be
+  // authorised via permissions, or every FxTwitter fetch fails at runtime.
+  assert.ok(
+    Array.isArray(mv2.permissions) &&
+      mv2.permissions.includes("https://api.fxtwitter.com/*"),
+    "MV2 must keep the FxTwitter host permission",
+  );
   assert.deepEqual(
     mv3.browser_specific_settings.gecko.data_collection_permissions,
     mv2.browser_specific_settings.gecko.data_collection_permissions,

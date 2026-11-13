@@ -141,7 +141,7 @@ test("content: installs the window message bridge", async () => {
 
   win.dispatchEvent(Object.assign(new win.Event("message"), {
     origin: ORIGIN,
-    data: { type: "rb:score-request", handle: "yooksiktir", token: TOKEN },
+    data: { type: "rb:score-request", handle: "jack", token: TOKEN },
   }));
   await settle();
 
@@ -152,7 +152,7 @@ test("content: installs the window message bridge", async () => {
   );
   assert.deepEqual(browserApi.sent[1], {
     type: "rb:score-request",
-    handle: "yooksiktir",
+    handle: "jack",
     token: TOKEN,
   });
 });

@@ -321,7 +321,15 @@ export async function handleScoreRequest(handle, deps = {}) {
       let state = null;
       // Error mapping per Part 1 §7.
       if (reason === "not_found") {
+        // The account does not exist. No data and no heuristic.
         state = "error";
+      } else if (reason === "unavailable") {
+        // The account exists, but the timeline could not be read. Use the
+        // replies that came in: the heuristic on enough of them, otherwise
+        // report that there is not enough data.
+        state = replies.length >= minReplies
+          ? "estimated"
+          : (replies.length > 0 ? "insufficient" : "error");
       } else if (!ok && reason === "malformed") {
         state = replies.length >= minReplies ? "estimated" : "error";
       } else if (!ok && (reason === "network" || reason === "rate_limit")) {
@@ -334,11 +342,19 @@ export async function handleScoreRequest(handle, deps = {}) {
         state = replies.length >= minReplies ? "result" : "insufficient";
       }
 
+      const reasonLabel = {
+        not_found: "account not found (FxTwitter 'User not found')",
+        unavailable: "timeline unavailable (FxTwitter 404 empty body)",
+        network: "network error",
+        rate_limit: "rate limited",
+        malformed: "malformed response",
+      }[reason] ?? reason;
+
       r.log(
         "score",
         h,
         "fetch:",
-        ok ? "ok" : `failed (${reason})`,
+        ok ? "ok" : `failed (${reasonLabel})`,
         "replies:",
         replies.length,
         "-> state:",
@@ -471,8 +487,13 @@ export async function handleScoreRequest(handle, deps = {}) {
         r.log(
           "score",
           h,
-          `AI skipped (state=${state}, mode=${mode},`,
-          `consented=${consented}, features=${!!features})`,
+          "AI skipped:",
+          state === "error"
+            ? "analysis failed (no usable replies)"
+            : state === "insufficient"
+            ? "insufficient data"
+            : `state=${state}, mode=${mode}, features=${!!features}`,
+          `(mode=${mode}, consented=${consented})`,
         );
       }
 

@@ -1,0 +1,224 @@
+{
+  "code": 200,
+  "results": [
+    {
+      "type": "status",
+      "id": "100",
+      "url": "https://x.com/jack/status/100",
+      "text": "@elonmusk knkk bak kullanamıyoruz seslide amk ya",
+      "created_at": "Fri Sep 04 17:06:40 +0000 2026",
+      "created_timestamp": 1757000000,
+      "likes": 5,
+      "reposts": 1,
+      "quotes": 0,
+      "replies": 2,
+      "author": {
+        "type": "profile",
+        "id": "12",
+        "name": "jack",
+        "screen_name": "jack",
+        "avatar_url": "https://pbs.twimg.com/profile_images/jack.jpg",
+        "banner_url": "https://pbs.twimg.com/profile_banners/jack.jpg",
+        "description": "no state is the best state",
+        "raw_description": {
+          "text": "no state is the best state",
+          "facets": []
+        },
+        "location": "",
+        "url": "https://x.com/jack",
+        "protected": false,
+        "followers": 1000,
+        "following": 3,
+        "statuses": 100,
+        "media_count": 10,
+        "likes": 100,
+        "joined": "Tue Mar 21 20:50:14 +0000 2006",
+        "website": null
+      },
+      "media": {},
+      "raw_text": {
+        "text": "@elonmusk knkk bak kullanamıyoruz seslide amk ya",
+        "display_text_range": [0, 42],
+        "facets": []
+      },
+      "lang": "tr",
+      "possibly_sensitive": false,
+      "replying_to": {
+        "screen_name": "elonmusk",
+        "status": "p1",
+        "url": "https://x.com/elonmusk/status/p1",
+        "profile_url": "https://x.com/elonmusk"
+      },
+      "source": null,
+      "embed_card": "tweet",
+      "provider": "twitter",
+      "is_note_tweet": false,
+      "community_note": null,
+      "reposted_by": null
+    },
+    {
+      "type": "status",
+      "id": "101",
+      "url": "https://x.com/elonmusk/status/101",
+      "text": "a foreign authored reply",
+      "created_at": "Fri Sep 04 17:06:41 +0000 2026",
+      "created_timestamp": 1757000001,
+      "likes": 1,
+      "reposts": 0,
+      "quotes": 0,
+      "replies": 0,
+      "author": {
+        "type": "profile",
+        "id": "44196397",
+        "name": "Elon Musk",
+        "screen_name": "elonmusk",
+        "avatar_url": "https://pbs.twimg.com/profile_images/elon.jpg",
+        "banner_url": "https://pbs.twimg.com/profile_banners/elon.jpg",
+        "description": "Mars",
+        "raw_description": {
+          "text": "Mars",
+          "facets": []
+        },
+        "location": "Mars",
+        "url": "https://x.com/elonmusk",
+        "protected": false,
+        "followers": 100000,
+        "following": 100,
+        "statuses": 1000,
+        "media_count": 100,
+        "likes": 1000,
+        "joined": "Tue Jun 02 12:00:00 +0000 2009",
+        "website": null
+      },
+      "media": {},
+      "raw_text": {
+        "text": "a foreign authored reply",
+        "display_text_range": [0, 23],
+        "facets": []
+      },
+      "lang": "en",
+      "possibly_sensitive": false,
+      "replying_to": {
+        "screen_name": "elonmusk",
+        "status": "p2",
+        "url": "https://x.com/elonmusk/status/p2",
+        "profile_url": "https://x.com/elonmusk"
+      },
+      "source": null,
+      "embed_card": "tweet",
+      "provider": "twitter",
+      "is_note_tweet": false,
+      "community_note": null,
+      "reposted_by": null
+    },
+    {
+      "type": "status",
+      "id": "102",
+      "url": "https://x.com/jack/status/102",
+      "text": "original post not a reply",
+      "created_at": "Fri Sep 04 17:06:42 +0000 2026",
+      "created_timestamp": 1757000002,
+      "likes": 0,
+      "reposts": 0,
+      "quotes": 0,
+      "replies": 0,
+      "author": {
+        "type": "profile",
+        "id": "12",
+        "name": "jack",
+        "screen_name": "jack",
+        "avatar_url": "https://pbs.twimg.com/profile_images/jack.jpg",
+        "banner_url": "https://pbs.twimg.com/profile_banners/jack.jpg",
+        "description": "no state is the best state",
+        "raw_description": {
+          "text": "no state is the best state",
+          "facets": []
+        },
+        "location": "",
+        "url": "https://x.com/jack",
+        "protected": false,
+        "followers": 1000,
+        "following": 3,
+        "statuses": 100,
+        "media_count": 10,
+        "likes": 100,
+        "joined": "Tue Mar 21 20:50:14 +0000 2006",
+        "website": null
+      },
+      "media": {},
+      "raw_text": {
+        "text": "original post not a reply",
+        "display_text_range": [0, 25],
+        "facets": []
+      },
+      "lang": "tr",
+      "possibly_sensitive": false,
+      "replying_to": null,
+      "source": null,
+      "embed_card": "tweet",
+      "provider": "twitter",
+      "is_note_tweet": false,
+      "community_note": null,
+      "reposted_by": null
+    },
+    {
+      "type": "status",
+      "id": "103",
+      "url": "https://x.com/jack/status/103",
+      "text": "reply to self should be excluded",
+      "created_at": "Fri Sep 04 17:06:43 +0000 2026",
+      "created_timestamp": 1757000003,
+      "likes": 0,
+      "reposts": 0,
+      "quotes": 0,
+      "replies": 0,
+      "author": {
+        "type": "profile",
+        "id": "12",
+        "name": "jack",
+        "screen_name": "jack",
+        "avatar_url": "https://pbs.twimg.com/profile_images/jack.jpg",
+        "banner_url": "https://pbs.twimg.com/profile_banners/jack.jpg",
+        "description": "no state is the best state",
+        "raw_description": {
+          "text": "no state is the best state",
+          "facets": []
+        },
+        "location": "",
+        "url": "https://x.com/jack",
+        "protected": false,
+        "followers": 1000,
+        "following": 3,
+        "statuses": 100,
+        "media_count": 10,
+        "likes": 100,
+        "joined": "Tue Mar 21 20:50:14 +0000 2006",
+        "website": null
+      },
+      "media": {},
+      "raw_text": {
+        "text": "reply to self should be excluded",
+        "display_text_range": [0, 31],
+        "facets": []
+      },
+      "lang": "tr",
+      "possibly_sensitive": false,
+      "replying_to": {
+        "screen_name": "jack",
+        "status": "p3",
+        "url": "https://x.com/jack/status/p3",
+        "profile_url": "https://x.com/jack"
+      },
+      "source": null,
+      "embed_card": "tweet",
+      "provider": "twitter",
+      "is_note_tweet": false,
+      "community_note": null,
+      "reposted_by": null
+    }
+  ],
+  "cursor": {
+    "top": "top-cursor-1",
+    "bottom": "next-cursor-1"
+  }
+}

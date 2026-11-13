@@ -34,7 +34,7 @@ const CARD_HTML = `
       <div data-testid="UserAvatar-Container"><div></div></div>
       <div>
         <div>
-          <div><a href="/yoksiktir/following">yoksiktir</a></div>
+          <div><a href="/jack/following">jack</a></div>
         </div>
       </div>
     </div>
@@ -81,7 +81,7 @@ function spyIntervals() {
 // --- extractScreenName --------------------------------------------------------
 
 test("hovercard: extractScreenName reads the handle out of the path", () => {
-  assert.equal(extractScreenName("/yoksiktir/following"), "yoksiktir");
+  assert.equal(extractScreenName("/jack/following"), "jack");
 });
 
 test("hovercard: extractScreenName rejects a path with no handle", () => {
@@ -98,7 +98,7 @@ test("hovercard: extractScreenName rejects a multi-segment path", () => {
 });
 
 test("hovercard: extractScreenName preserves case (normalisation is the gate's job)", () => {
-  assert.equal(extractScreenName("/Yoksiktir/following"), "Yoksiktir");
+  assert.equal(extractScreenName("/Jack/following"), "Jack");
 });
 
 // --- SELECTORS ----------------------------------------------------------------
@@ -234,7 +234,7 @@ test("hovercard: an opening card renders the analyzing line at the CP4T point", 
   assert.ok(line, "no line was inserted after the 3rd parent");
   assert.match(line.className, /ragebait-line/);
   assert.match(line.textContent, /analyzing/);
-  assert.equal(line.getAttribute("data-ragebait-handle"), "yoksiktir");
+  assert.equal(line.getAttribute("data-ragebait-handle"), "jack");
   assert.equal(warns.length, 0);
 
   observer.dispose();
@@ -362,7 +362,7 @@ test("hovercard: bootPage routes a score response to the open line", async () =>
     // The type comes from the extension-world bridge; if the page-side
     // literal drifts from it, this test fails.
     type: SCORE_RESPONSE_TYPE,
-    handle: "yoksiktir",
+    handle: "jack",
     result: { state: "result", band: "high", percent: null },
   }, "*");
   await flush();

@@ -130,8 +130,8 @@ page → content script via `window.postMessage` (origin + type allowlist + toke
 1. Hovercard opens → username read
 2. Cache check (local only — the Worker cache is consulted by `/analyze`, not by the hover path) → if hit, render instantly (≤200ms budget)
 3. Miss → FxTwitter: page until ≥5 qualifying replies or cursor exhaustion (cap 3 pages, count=40). The request resolves once; there is no intermediate render.
-4. Extraction: `author.screen_name === handle && replying_to && replying_to.screen_name !== handle`
-5. Error mapping: `not_found` after retries → `error` (no data, NO heuristic) · transport timeout / 429 / 5xx → `estimated` heuristic on whatever partial replies were collected · `malformed` with zero usable replies → `error`, otherwise `estimated`
+4. Extraction: `author.screen_name` matches the handle without regard to case (`author.screen_name.toLowerCase() === handle.toLowerCase()`) && replying_to && replying_to.screen_name !== handle
+5. Error mapping: `not_found` after retries → `error` (no data, NO heuristic) · `unavailable` (the account exists, but the timeline could not be read) → `estimated` on the replies collected so far, `insufficient` on a few replies, `error` on none · transport timeout / 429 / 5xx → `estimated` heuristic on whatever partial replies were collected · `malformed` with zero usable replies → `error`, otherwise `estimated`
 6. Insufficient data (`< 5` qualifying replies after cursor exhaustion) → `insufficient` state
 
 **Per-reply features:** text, language, target account, parent tweet ID, likes/replies/views counters, timestamp.
@@ -183,7 +183,7 @@ Calibration set: hand-labeling by the domain expert (user); 50-80 accounts to st
 - **Unit:** parser (real captured fixtures from the spike session), heuristic features, composition/thresholds/normalisation, cache TTL/keying/envelope, DOM-store merge
 - **Integration:** mocked FxTwitter (recorded fixtures), mocked proxy responses (Clef/Jev shape), retry/timeout/paging behaviour
 - **Calibration:** precision/recall per band, Krippendorff α, reliability diagram, ECE — tuned on the tune split, gated on the held-out split (Wilson CIs); threshold report
-- **E2E:** web-ext lint on both build roots; load in Firefox; hovercard test on fixture accounts (yooksiktir, Boogie2988, karanows)
+- **E2E:** web-ext lint on both build roots; load in Firefox; hovercard test on fixture accounts (jack, elonmusk, karanows)
 - **Manual QA matrix:** cache hit/miss, offline, quota exhaustion, FxTwitter flaky-404, transport error, DOM change simulation, <5-reply account, non-TR/EN account
 
 ## 9. Compliance, legal, distribution
@@ -359,9 +359,9 @@ Both targets run on every `npm run build`; `manifest.mv3.json` is optional until
 
 **Interfaces:**
 - Consumes: `escapeHtml`, `ALLOWED_MSG_TYPES` (Task 2), `getConfig`/`getToken` (Task 2)
-- Produces: `extractScreenName(followingPathname)` → string | null (`'/yoksiktir/following'` → `'yoksiktir'`); `shouldRenderLine($hoverCard)` → boolean; `buildLineMarkup(state)` → HTML string; `BAND_STYLES` → `{low, medium, high}` colour map; `SELECTORS` → `{layers, hoverCard, avatarContainer, followingLink}` (the `tweet`/`socialContext` scraper selectors are Phase-5, D1); `createDomStore()` → `{record(handle, replies), merge(apiReplies), get(handle)}`; `bootPage()` (the `src/page/index.js` entry that wires security + hovercard + render + dom-store together)
+- Produces: `extractScreenName(followingPathname)` → string | null (`'/jack/following'` → `'jack'`); `shouldRenderLine($hoverCard)` → boolean; `buildLineMarkup(state)` → HTML string; `BAND_STYLES` → `{low, medium, high}` colour map; `SELECTORS` → `{layers, hoverCard, avatarContainer, followingLink}` (the `tweet`/`socialContext` scraper selectors are Phase-5, D1); `createDomStore()` → `{record(handle, replies), merge(apiReplies), get(handle)}`; `bootPage()` (the `src/page/index.js` entry that wires security + hovercard + render + dom-store together)
 
-- [ ] **Step 1: Write failing tests** — `extractScreenName('/yoksiktir/following')` → `'yoksiktir'`; `'/following'` → null; `null` → null; `'/a/b/following'` → null; `buildLineMarkup({state:'loading'})` → contains "analyzing…"; `{state:'result', band:'high', percent:null}` → "Ragebait: High" + "estimated" + the `high` colour class; `{state:'estimated', band:'medium'}` → "estimated (no model)"; `{state:'insufficient'}` → "insufficient data"; `{state:'error'}` → "analysis failed"; `{state:'quota'}` → "quota exceeded"; a band value containing `<b>` is escaped; `BAND_STYLES` has exactly the three keys; selector miss → no-op + a single `console.warn`.
+- [ ] **Step 1: Write failing tests** — `extractScreenName('/jack/following')` → `'jack'`; `'/following'` → null; `null` → null; `'/a/b/following'` → null; `buildLineMarkup({state:'loading'})` → contains "analyzing…"; `{state:'result', band:'high', percent:null}` → "Ragebait: High" + "estimated" + the `high` colour class; `{state:'estimated', band:'medium'}` → "estimated (no model)"; `{state:'insufficient'}` → "insufficient data"; `{state:'error'}` → "analysis failed"; `{state:'quota'}` → "quota exceeded"; a band value containing `<b>` is escaped; `BAND_STYLES` has exactly the three keys; selector miss → no-op + a single `console.warn`.
 
 - [ ] **Step 2: Run test** → FAIL.
 
@@ -387,16 +387,16 @@ Both targets run on every `npm run build`; `manifest.mv3.json` is optional until
 
 **Files:**
 - Create: `src/data/fxtwitter.js`, `src/data/parse.js`, `src/data/adapter.js`
-- Create (fixtures): `tests/fixtures/fxtwitter-yooksiktir.json`, `tests/fixtures/fxtwitter-boogie2988.json`
+- Create (fixtures): `tests/fixtures/fxtwitter-jack.json`
 - Test: `tests/data/parse.test.js`, `tests/data/fxtwitter.test.js`, `tests/data/adapter.test.js`
 
 **Interfaces:**
 - Produces: `Reply` = `{id, text, lang, targetScreenName, parentStatusId, likes, replyCount, views, createdAt}`; `extractProfileReplies(responseJson, handle)` → `Reply[]`; `fetchReplies(handle, {fetchImpl, sleepImpl, maxPages=3, count=40, signal})` → `{ok:true, replies} | {ok:false, reason:'not_found'|'network'|'rate_limit'|'malformed', replies: Reply[]}`; `FxDataAdapter` = `{name: string, fetchReplies(handle, deps): Promise<FetchResult>}`
-- **Source→Reply field map (exact):** `id` ← `id`; `text` ← `text`; `lang` ← `lang`; `targetScreenName` ← `replying_to.screen_name`; `parentStatusId` ← `in_reply_to_status_id`, else `null`; `likes` ← `likes`; `replyCount` ← `replies`; `views` ← `views`; `createdAt` ← `created_timestamp`
+- **Source→Reply field map (exact):** `id` ← `id`; `text` ← `text`; `lang` ← `lang`; `targetScreenName` ← `replying_to.screen_name`; `parentStatusId` ← `replying_to.status`, else `null`; `likes` ← `likes`; `replyCount` ← `replies`; `views` ← `views`; `createdAt` ← `created_timestamp`
 
-- [ ] **Step 1: Save fixtures** — `fxtwitter-yooksiktir.json`: a `{"code":200,"results":[…],"cursor":{…}}` array containing yooksiktir's reply `"@kviciemre knkk bak kullanamıyoruz seslide amk ya"` (`author.screen_name:"yooksiktir"`, `replying_to.screen_name:"kviciemre"`, `replies:2`, `created_timestamp:1757000000`) plus mixed content (another user's reply, an original post, a record with `replying_to:null`). `fxtwitter-boogie2988.json`: a foreign-author reply + at least one Boogie2988 own reply.
+- [ ] **Step 1: Save fixtures** — `fxtwitter-jack.json`: a `{"code":200,"results":[…],"cursor":{…}}` array containing jack's reply `"@elonmusk knkk bak kullanamıyoruz seslide amk ya"` (`author.screen_name:"jack"`, `replying_to.screen_name:"elonmusk"`, `replies:2`, `created_timestamp:1757000000`) plus mixed content (another user's reply, an original post, a record with `replying_to:null`).
 
-- [ ] **Step 2: Write failing parse tests** — only records with `author.screen_name === handle` AND non-null `replying_to` AND `replying_to.screen_name !== handle` are returned; in the yooksiktir fixture exactly 1 record, target `kviciemre`, full text, `lang: 'tr'`, `replyCount: 2`, `createdAt: 1757000000`; empty `results`, missing `results`, null `replying_to`, missing `legacy`/`author` → partial/empty array, no exception.
+- [ ] **Step 2: Write failing parse tests** — only records with `author.screen_name === handle` AND non-null `replying_to` AND `replying_to.screen_name !== handle` are returned; in the jack fixture exactly 1 record, target `elonmusk`, full text, `lang: 'tr'`, `replyCount: 2`, `createdAt: 1757000000`; empty `results`, missing `results`, null `replying_to`, missing `legacy`/`author` → partial/empty array, no exception.
 
 - [ ] **Step 3: Run parse test** → FAIL.
 

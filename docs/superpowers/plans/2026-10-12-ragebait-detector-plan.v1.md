@@ -129,7 +129,7 @@ Calibration set: hand-labeling by the domain expert (user); 50-80 accounts to st
 - **Unit:** parser (using real captured fixtures from the spike session), heuristic features, composition/thresholds, cache TTL/keying
 - **Integration:** mocked FxTwitter (recorded fixtures), mocked proxy responses (Clef/Jev shape), retry/timeout behavior
 - **Calibration:** precision/recall per band, Krippendorff α, reliability diagram, ECE — tuned on tune split, gated on held-out split (Wilson CIs); threshold report
-- **E2E:** web-ext lint; load in Firefox; hovercard test on fixture accounts (yooksiktir, Boogie2988, karanows, etc.)
+- **E2E:** web-ext lint; load in Firefox; hovercard test on fixture accounts (jack, elonmusk, karanows, etc.)
 - **Manual QA matrix:** cache hit/miss, offline, quota exhaustion, FxTwitter flaky-404, DOM change simulation
 
 ## 9. Compliance, legal, distribution
@@ -260,9 +260,9 @@ Calibration set: hand-labeling by the domain expert (user); 50-80 accounts to st
 
 **Interfaces:**
 - Consumes: `escapeHtml` (Task 2), selector registry (selectors in one config block, overridable via `/config` in Phase 2)
-- Produces: `extractScreenName(followingPathname)` → string | null (e.g. `/yoksiktir/following` → `yoksiktir`); `shouldRenderLine($hoverCard)` → boolean; `buildLineMarkup(state)` → HTML string; `BAND_STYLES` → `{ low, medium, high }` CSS color map; `SELECTORS` → `{ layers, hoverCard, avatarContainer, followingLink }`
+- Produces: `extractScreenName(followingPathname)` → string | null (e.g. `/jack/following` → `jack`); `shouldRenderLine($hoverCard)` → boolean; `buildLineMarkup(state)` → HTML string; `BAND_STYLES` → `{ low, medium, high }` CSS color map; `SELECTORS` → `{ layers, hoverCard, avatarContainer, followingLink }`
 
-- [ ] **Step 1: Write failing tests** — `extractScreenName('/yoksiktir/following')` → `'yoksiktir'`; `/following` → null; `null` → null; `buildLineMarkup({state:'loading'})` → contains "analyzing…"; `{state:'result', band:'high', percent:null}` → "Ragebait: High" + "estimated" + red class; `{state:'insufficient'}` → "insufficient data"; `{state:'error'}` → "analysis failed"; `{state:'quota'}` → "quota exceeded"; a band value containing `<b>` is escaped; selector miss → no-op + console warning.
+- [ ] **Step 1: Write failing tests** — `extractScreenName('/jack/following')` → `'jack'`; `/following` → null; `null` → null; `buildLineMarkup({state:'loading'})` → contains "analyzing…"; `{state:'result', band:'high', percent:null}` → "Ragebait: High" + "estimated" + red class; `{state:'insufficient'}` → "insufficient data"; `{state:'error'}` → "analysis failed"; `{state:'quota'}` → "quota exceeded"; a band value containing `<b>` is escaped; selector miss → no-op + console warning.
 
 - [ ] **Step 2: Run test** → FAIL.
 
@@ -280,15 +280,15 @@ Calibration set: hand-labeling by the domain expert (user); 50-80 accounts to st
 
 **Files:**
 - Create: `src/data/fxtwitter.js`, `src/data/parse.js`
-- Create (fixtures): `tests/fixtures/fxtwitter-yoksiktir.json`, `tests/fixtures/fxtwitter-boogie2988.json`
+- Create (fixtures): `tests/fixtures/fxtwitter-jack.json`
 - Test: `tests/data/parse.test.js`, `tests/data/fxtwitter.test.js`
 
 **Interfaces:**
 - Produces: `extractProfileReplies(responseJson, handle)` → `Reply[]` (Reply: `{id, text, lang, targetScreenName, parentStatusId, likes, replyCount, views, createdAt}`); `fetchReplies(handle, {fetchImpl, sleepImpl, maxPages=3, count=40})` → `{ok: true, replies} | {ok:false, reason:'not_found'|'network'|'rate_limit'|'malformed'}`; `FxDataAdapter` seam (interface both FxTwitter client and future DOM/deep-mode sources implement, so SPOF swap needs no orchestration rewrite)
 
-- [ ] **Step 1: Save fixtures** — `fxtwitter-yoksiktir.json`: a `{"code":200,"results":[…]}` array containing yooksiktir's reply `"@kviciemre knkk bak kullanamıyoruz seslide amk ya"` (`author.screen_name:"yoksiktir"`, `replying_to.screen_name:"kviciemre"`) plus mixed content (another user's reply, an original post, a record with `replying_to:null`). `fxtwitter-boogie2988.json`: the TheRayFlexer reply (foreign author) + at least 1 Boogie2988 own reply.
+- [ ] **Step 1: Save fixtures** — `fxtwitter-jack.json`: a `{"code":200,"results":[…]}` array containing jack's reply `"@elonmusk knkk bak kullanamıyoruz seslide amk ya"` (`author.screen_name:"jack"`, `replying_to.screen_name:"elonmusk"`) plus mixed content (another user's reply, an original post, a record with `replying_to:null`).
 
-- [ ] **Step 2: Write failing parse tests** — from the fixture: only records with `author.screen_name === handle` AND non-null `replying_to` AND `replying_to.screen_name !== handle` are returned; in the yooksiktir fixture exactly 1 record, target `kviciemre`, full text, lang `tr`; empty `results`, missing `results`, null `replying_to`, missing `legacy`/`author` fields → partial/empty array, NO exception.
+- [ ] **Step 2: Write failing parse tests** — from the fixture: only records with `author.screen_name === handle` AND non-null `replying_to` AND `replying_to.screen_name !== handle` are returned; in the jack fixture exactly 1 record, target `elonmusk`, full text, lang `tr`; empty `results`, missing `results`, null `replying_to`, missing `legacy`/`author` fields → partial/empty array, NO exception.
 
 - [ ] **Step 3: Run parse test** → FAIL.
 

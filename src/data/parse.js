@@ -19,6 +19,7 @@ export function extractProfileReplies(responseJson, handle) {
   if (!Array.isArray(results)) return [];
 
   const h = String(handle ?? "");
+  const hLower = h.toLowerCase();
   const out = [];
 
   for (const item of results) {
@@ -28,7 +29,10 @@ export function extractProfileReplies(responseJson, handle) {
       ? item.author
       : null;
     const authorName = author?.screen_name;
-    if (authorName !== h) continue;
+    // FxTwitter returns the handle with its original case, and the caller
+    // asks with the lower-case handle. Compare without regard to case.
+    if (typeof authorName !== "string") continue;
+    if (authorName.toLowerCase() !== hLower) continue;
 
     const replying = item.replying_to && typeof item.replying_to === "object"
       ? item.replying_to
@@ -36,14 +40,14 @@ export function extractProfileReplies(responseJson, handle) {
     if (!replying) continue;
     const targetName = replying.screen_name;
     if (targetName == null) continue;
-    if (String(targetName).toLowerCase() === h.toLowerCase()) continue;
+    if (String(targetName).toLowerCase() === hLower) continue;
 
     out.push({
       id: item.id ?? null,
       text: item.text ?? null,
       lang: item.lang ?? null,
       targetScreenName: targetName ?? null,
-      parentStatusId: item.in_reply_to_status_id ?? null,
+      parentStatusId: replying.status ?? null,
       likes: item.likes ?? null,
       replyCount: item.replies ?? null,
       views: item.views ?? null,

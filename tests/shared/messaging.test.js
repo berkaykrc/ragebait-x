@@ -60,13 +60,13 @@ const pageMsg = (data, origin = ORIGIN) => ({ origin, data });
 test("bridge: forwards a valid score request to the background", () => {
   const { listeners, sent } = setup();
   listeners.message[0](
-    pageMsg({ type: "rb:score-request", handle: "Yooksiktir", token: TOKEN }),
+    pageMsg({ type: "rb:score-request", handle: "Jack", token: TOKEN }),
   );
 
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0], {
     type: "rb:score-request",
-    handle: "yooksiktir",
+    handle: "jack",
     token: TOKEN,
   });
 });
@@ -75,7 +75,7 @@ test("bridge: drops a message from a foreign origin", () => {
   const { listeners, sent } = setup();
   listeners.message[0](
     pageMsg(
-      { type: "rb:score-request", handle: "yoksiktir", token: TOKEN },
+      { type: "rb:score-request", handle: "jack", token: TOKEN },
       "https://evil.example",
     ),
   );
@@ -85,7 +85,7 @@ test("bridge: drops a message from a foreign origin", () => {
 test("bridge: drops a message with a token mismatch", () => {
   const { listeners, sent } = setup();
   listeners.message[0](
-    pageMsg({ type: "rb:score-request", handle: "yoksiktir", token: "wrong" }),
+    pageMsg({ type: "rb:score-request", handle: "jack", token: "wrong" }),
   );
   assert.equal(sent.length, 0);
 });
@@ -95,7 +95,7 @@ test("bridge: drops a message carrying a score-bearing field", () => {
   listeners.message[0](
     pageMsg({
       type: "rb:score-request",
-      handle: "yoksiktir",
+      handle: "jack",
       token: TOKEN,
       band: "high",
     }),
@@ -169,7 +169,7 @@ test("bridge: posts the score response resolved from the sendMessage Promise", a
   const scoreResponse = {
     type: "rb:score-response",
     requestId: "r-2",
-    handle: "yooksiktir",
+    handle: "jack",
     result: { state: "result", band: "medium" },
   };
   // Override sendMessage to resolve with the background's return value.
@@ -185,7 +185,7 @@ test("bridge: posts the score response resolved from the sendMessage Promise", a
   });
 
   w.listeners.message[0](
-    pageMsg({ type: "rb:score-request", handle: "Yooksiktir", token: TOKEN }),
+    pageMsg({ type: "rb:score-request", handle: "Jack", token: TOKEN }),
   );
 
   // Let the micro-task queue drain so the .then() fires.
@@ -212,7 +212,7 @@ test("bridge: does not throw when the background is unavailable (Promise rejects
   });
 
   w.listeners.message[0](
-    pageMsg({ type: "rb:score-request", handle: "Yooksiktir", token: TOKEN }),
+    pageMsg({ type: "rb:score-request", handle: "Jack", token: TOKEN }),
   );
 
   // Rejection must be swallowed; no unhandled rejection, no postMessage.
