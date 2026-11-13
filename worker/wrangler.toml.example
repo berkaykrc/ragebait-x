@@ -1,10 +1,9 @@
 # Template for operators who deploy their own copy of this Worker.
 #
-# Copy this file to `wrangler.toml` and replace every REPLACE_WITH_...
-# placeholder and every `my-*-worker` name with your own values. The
-# repository's own `wrangler.toml` already holds this project's real namespace
-# IDs; do not reuse them for a different Cloudflare account. See
-# docs/release.md.
+# The repository ships only this template. Copy it to `wrangler.toml`
+# (gitignored) and replace every REPLACE_WITH_... placeholder and every
+# `my-*-worker` name with your own values. Do not reuse another account's
+# namespace IDs. See docs/release.md.
 
 # Only named environments are deployable. There is deliberately no top-level
 # Worker: `name`, `main`, and `compatibility_date` live inside each [env.*]

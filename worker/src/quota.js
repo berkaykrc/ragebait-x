@@ -199,7 +199,7 @@ export function extractQuotaIdentity(request, body) {
  *
  * @param {string} material Namespaced identity material ("kind:value").
  * @param {string} secret Server-only secret (INSTALL_TOKEN_SECRET). The
- *   secret never ships to clients (see `worker/wrangler.toml`) and a long
+ *   secret never ships to clients (see `worker/wrangler.toml.example`) and a long
  *   random value keeps the digest strong enough to protect raw IDs at rest.
  * @returns {Promise<string>} 64-char hex digest.
  */

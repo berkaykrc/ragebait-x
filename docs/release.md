@@ -4,19 +4,20 @@ Everything in an **Operator step** subsection is work done in the
 Cloudflare dashboard / wrangler CLI by the person deploying. This repository
 cannot enforce those actions; repository-enforced checks are stated
 separately — the `task5:` assertions in `worker/tests/deploy-config.test.js`
-(secrets and environment contract of `worker/wrangler.toml` and
-`worker/src`) and in `worker/tests/config.test.js` (no debug routes, no
-secrets in `/config`) — and are covered by `npm run check`.
+(no hardcoded credentials in `worker/src` or in the deploy config; deploy
+template structure, non-empty `[vars]`, and distinct non-empty `CACHE_KV` ids)
+and in `worker/tests/config.test.js` (no debug routes, no secrets in
+`/config`) — and are covered by `npm run check`.
 
 ## Worker (Cloudflare)
 
 1. Install wrangler locally in the Worker package: `cd worker && npm i -D wrangler`
 2. Create KV namespace: `cd worker && npx wrangler kv namespace create CACHE_KV --env <environment>`.
-   Copy the returned namespace ID into the `CACHE_KV` binding for the
-   environment you deploy, for example `[[env.production.kv_namespaces]]` in
-   `worker/wrangler.toml`. Do not reuse the repository's production ID for a
-   new deployment. Copy `worker/wrangler.toml.example` and replace its
-   placeholder IDs and Worker names with your own.
+   Copy `worker/wrangler.toml.example` to `worker/wrangler.toml` (gitignored),
+   then replace its placeholder IDs and Worker names with your own. Copy the
+   returned namespace ID into the `CACHE_KV` binding for the environment you
+   deploy, for example `[[env.production.kv_namespaces]]`. Do not reuse another
+   account's production ID for a new deployment.
 3. Put Worker model credentials with Wrangler, per environment:
    `CLOUDFLARE_API_TOKEN` and `TYPESAFE_API_KEY`. These are the only Worker
    model/deploy secret names. Keep them in Cloudflare secrets only; never in the
@@ -25,15 +26,18 @@ secrets in `/config`) — and are covered by `npm run check`.
    `CLOUDFLARE_ACCOUNT_ID` is a public account identifier, not an API
    credential; it may be a Worker variable.
 4. Deploy explicitly (there is no bare deploy): `npm run deploy:production` or
-   `npm run deploy:staging` (each runs
-   `cd worker && npx wrangler deploy --env <environment>`). `wrangler.toml`
-   defines only named environments, so a bare `wrangler deploy` fails by design.
+   `npm run deploy:staging` (each runs `scripts/deploy-worker.mjs`, which
+   checks that `worker/wrangler.toml` exists and then runs
+   `npx wrangler deploy --env <environment>` in `worker/`).
+   `wrangler.toml` defines only named environments, so a bare
+   `wrangler deploy` fails by design.
 5. Copy the deployed URL into `DEFAULT_PROXY_URL` in both `worker/src/config.js`
    and `src/config.js`, then rebuild.
 
 ### Operator step: separated environments
 
-The deploy config declares only two environments in `worker/wrangler.toml`:
+The deploy config declares only two environments in `worker/wrangler.toml`
+(copied from the tracked `worker/wrangler.toml.example`):
 `[env.production]` and `[env.staging]`. There is no top-level Worker and no
 bare deploy; `name`, `main`, and `compatibility_date` live inside each
 environment, and every deploy uses `--env production` or `--env staging`.
@@ -43,9 +47,9 @@ file cannot enforce it.
 1. Create the staging namespace:
    `npx wrangler kv namespace create CACHE_KV --env staging`.
    Copy the returned ID into `[[env.staging.kv_namespaces]]`. Never point
-   staging at the production namespace id. The repository's `wrangler.toml`
-   already holds this project's real staging ID; other operators copy
-   `wrangler.toml.example` and replace the placeholder.
+   staging at the production namespace id. Copy `worker/wrangler.toml.example`
+   to `worker/wrangler.toml` and replace the placeholder with your own real
+   staging ID.
 2. Set staging credentials per environment:
    `npx wrangler secret put CLOUDFLARE_API_TOKEN --env staging`,
    `npx wrangler secret put TYPESAFE_API_KEY --env staging`, and
@@ -78,9 +82,9 @@ file cannot enforce it.
 
 ### Operator step: production hardening (identity privacy + atomic limit)
 
-`worker/wrangler.toml` declares only the `CACHE_KV` namespaces, the two
-environments, and the public `[vars]` tables — no `[[durable_objects]]`
-entry and no operator secrets. Two protections above the code defaults are
+The deploy config (`worker/wrangler.toml`, copied from the tracked example)
+declares only the `CACHE_KV` namespaces, the two environments, and the public
+`[vars]` tables — no `[[durable_objects]]` entry and no operator secrets. Two protections above the code defaults are
 therefore deploy-side only. A docs-following deploy that skips this step
 runs the best-effort legacy quota counter and persists raw install-token
 quota keys:

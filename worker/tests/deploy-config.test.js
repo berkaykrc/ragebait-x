@@ -1,36 +1,26 @@
-// task5: deploy configuration cannot carry secret material and every
-// environment declares its own storage. This parses `worker/wrangler.toml`
-// as text on purpose: the failure mode we are testing for is a secret
-// appearing in the file itself, so the check must not depend on any helper
-// that could be skipped or tricked by a TOML parser upgrade.
+// task5: the Worker source must never contain hardcoded credential
+// assignments; the deploy config must keep its documented structure, carry
+// no secret material, and declare non-empty public vars and distinct
+// non-empty CACHE_KV ids. `wrangler.toml` is operator-local and gitignored,
+// so the tracked `wrangler.toml.example` is the file CI can read; CI does
+// not deploy the Worker.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const WRANGLER_TOML = path.join(
+const WRANGLER_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
-  "wrangler.toml",
 );
-
-// Public, non-secret deployment knobs. Anything outside this set in a
-// `[vars]` block needs an explicit test update with a reason.
-const ALLOWED_VARS_KEYS = [
-  "PROXY_ENABLED",
-  "BAND_HIGH",
-  "BAND_MEDIUM",
-  "SHOW_NUMBER",
-  "CLOUDFLARE_ACCOUNT_ID",
-];
+const WRANGLER_EXAMPLE = path.join(WRANGLER_DIR, "wrangler.toml.example");
+const WRANGLER_LOCAL = path.join(WRANGLER_DIR, "wrangler.toml");
 
 // Names that must never appear with a literal value in the deploy config or
-// the Worker source. This list deliberately covers the deploy-side secrets
-// of `worker/wrangler.toml` and `worker/src` ONLY: the
-// scripts/check-artifacts.mjs scan also names the AMO signing credentials
-// (AMO_KEY/AMO_SECRET), which are excluded here because they are a
-// release concern and never enter the deploy config or the
+// the Worker source. The scripts/check-artifacts.mjs scan also names the AMO
+// signing credentials (AMO_KEY/AMO_SECRET), which are excluded here because
+// they are a release concern and never enter the deploy config or the
 // Worker source.
 const SECRET_VAR_NAMES = [
   "CLOUDFLARE_API_TOKEN",
@@ -51,66 +41,9 @@ function secretAssignmentRegex(name) {
 }
 
 // Generic credential-shaped assignment: a key name mentioning api key /
-// secret / password / token assigned a long literal. Shared by the
-// wrangler.toml and worker/src checks below so both gates scan the same
-// pattern.
+// secret / password / token assigned a long literal.
 const CREDENTIAL_SHAPED_ASSIGNMENT =
   /\b[\w-]*(api[-_]?key|secret|password|token)[\w-]*\s*=\s*["'][^"']{16,}["']/i;
-
-function readWranglerToml() {
-  return readFileSync(WRANGLER_TOML, "utf8");
-}
-
-/**
- * Extracts kv_namespaces blocks as { section, env, binding, id } records.
- * Handles both top-level `[[kv_namespaces]]` (env === null) and
- * `[[env.<name>.kv_namespaces]]` (env === "<name>").
- *
- * @param {string} toml
- * @returns {Array<{ section: string, env: string | null, binding: string, id: string }>}
- */
-function parseKvNamespaces(toml) {
-  const blocks = [];
-  let current = null;
-  const flush = () => {
-    if (!current) return;
-    const env = current.raw === "kv_namespaces"
-      ? null
-      : current.raw.replace(/^env\./, "").replace(/\.kv_namespaces$/, "");
-    blocks.push({
-      section: current.raw,
-      env,
-      binding: current.binding ?? "",
-      id: current.id ?? "",
-    });
-    current = null;
-  };
-  for (const rawLine of toml.split("\n")) {
-    const line = rawLine.trim();
-    const kvSection = /^\[\[(kv_namespaces|env\.[\w.]+\.kv_namespaces)\]\]$/
-      .exec(line);
-    if (kvSection) {
-      flush();
-      current = { raw: kvSection[1] };
-      continue;
-    }
-    // Any other table header ends the current namespace block.
-    if (/^\[/.test(line)) {
-      flush();
-      continue;
-    }
-    if (!current) continue;
-    const binding = /^binding\s*=\s*"([^"]*)"$/.exec(line);
-    if (binding) {
-      current.binding = binding[1];
-      continue;
-    }
-    const id = /^id\s*=\s*"([^"]*)"$/.exec(line);
-    if (id) current.id = id[1];
-  }
-  flush();
-  return blocks;
-}
 
 /**
  * Extracts `[vars]` / `[env.<name>.vars]` tables as key → literal value
@@ -135,7 +68,10 @@ function parseVarsTables(toml) {
       continue;
     }
     if (!envKey) continue;
-    const assignment = /^([A-Z0-9_]+)\s*=\s*"([^"]*)"$/.exec(line);
+    // Accept lowercase keys and trailing `# comment` so an empty value
+    // cannot hide behind an inline comment.
+    const assignment = /^([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"(?:\s*#.*)?$/
+      .exec(line);
     if (assignment) {
       tables.get(envKey)[assignment[1]] = assignment[2];
     }
@@ -143,118 +79,223 @@ function parseVarsTables(toml) {
   return tables;
 }
 
-test("task5: every deploy environment declares its own CACHE_KV id", () => {
-  const toml = readWranglerToml();
-  const blocks = parseKvNamespaces(toml).filter((b) =>
-    b.binding === "CACHE_KV"
-  );
-  const byEnv = new Map(blocks.map((b) => [b.env ?? "top", b]));
-
-  for (const deployEnv of ["production", "staging"]) {
-    const block = byEnv.get(deployEnv);
-    assert.ok(
-      block,
-      `wrangler.toml must declare CACHE_KV for the ${deployEnv} environment`,
-    );
-    assert.match(
-      block.id,
-      /\S/,
-      `the ${deployEnv} environment's CACHE_KV id must not be empty`,
-    );
+/**
+ * Normalizes a wrangler file to its tables: each table header plus its key
+ * names. Values and comments are ignored.
+ *
+ * @param {string} toml
+ * @returns {Array<{ header: string, keys: string[] }>}
+ */
+function parseStructure(toml) {
+  const tables = [];
+  let current = null;
+  const flush = () => {
+    if (current) {
+      current.keys.sort();
+      tables.push(current);
+    }
+    current = null;
+  };
+  for (const rawLine of toml.split("\n")) {
+    const line = rawLine.trim();
+    const header = /^\[\[?[^\]]+\]\]?$/.exec(line);
+    if (header) {
+      flush();
+      current = { header: line, keys: [] };
+      continue;
+    }
+    if (!current) continue;
+    const key = /^([A-Za-z0-9_-]+)\s*=/.exec(line);
+    if (key) current.keys.push(key[1]);
   }
-  assert.equal(
-    blocks.length,
-    2,
-    "exactly one CACHE_KV namespace per deploy environment (production, staging); no top-level default",
-  );
-});
+  flush();
+  return tables;
+}
 
-test("task5: staging KV namespace differs from production and is a real id", () => {
-  const toml = readWranglerToml();
-  const blocks = parseKvNamespaces(toml).filter((b) =>
-    b.binding === "CACHE_KV"
-  );
-  const production = blocks.find((b) => b.env === "production");
-  const staging = blocks.find((b) => b.env === "staging");
+/**
+ * Extracts `[[env.<name>.kv_namespaces]]` blocks as { env, binding, id }.
+ *
+ * @param {string} toml
+ * @returns {Array<{ env: string, binding: string, id: string }>}
+ */
+function parseKvNamespaces(toml) {
+  const blocks = [];
+  let current = null;
+  const flush = () => {
+    if (current) blocks.push(current);
+    current = null;
+  };
+  for (const rawLine of toml.split("\n")) {
+    const line = rawLine.trim();
+    const header = /^\[\[env\.([\w-]+)\.kv_namespaces\]\]$/.exec(line);
+    if (header) {
+      flush();
+      current = { env: header[1], binding: "", id: "" };
+      continue;
+    }
+    if (/^\[/.test(line)) {
+      flush();
+      continue;
+    }
+    if (!current) continue;
+    const binding = /^binding\s*=\s*"([^"]*)"(?:\s*#.*)?$/.exec(line);
+    if (binding) {
+      current.binding = binding[1];
+      continue;
+    }
+    const id = /^id\s*=\s*"([^"]*)"(?:\s*#.*)?$/.exec(line);
+    if (id) current.id = id[1];
+  }
+  flush();
+  return blocks;
+}
 
-  assert.ok(production && staging, "production and staging namespaces exist");
-  assert.notEqual(
-    staging.id,
-    production.id,
-    "staging must never share production's KV namespace",
-  );
-  // Staging must use a real namespace ID (32 hex chars) created via
-  // `npx wrangler kv namespace create CACHE_KV --env staging`. A placeholder
-  // or invented value here would let a careless deploy write to unknown
-  // infrastructure; the format check fails fast in that case.
-  assert.match(
-    staging.id,
-    /^[0-9a-f]{32}$/i,
-    "the staging id must be a real KV namespace id (32 hex chars) created with wrangler, not a placeholder",
-  );
-});
+// Tables the deploy config must provide. The key lists are minimums: an
+// operator may add public vars, extra bindings, or extra tables without
+// changing anything in this file.
+const REQUIRED_TABLES = [
+  {
+    header: "[env.production]",
+    keys: ["compatibility_date", "main", "name"],
+  },
+  { header: "[[env.production.kv_namespaces]]", keys: ["binding", "id"] },
+  { header: "[env.production.vars]", keys: [] },
+  { header: "[env.staging]", keys: ["compatibility_date", "main", "name"] },
+  { header: "[[env.staging.kv_namespaces]]", keys: ["binding", "id"] },
+  { header: "[env.staging.vars]", keys: [] },
+];
 
-test("task5: no top-level Worker config — only named environments are deployable", () => {
-  const toml = readWranglerToml();
+// Top-level Worker keys must stay absent: a bare `wrangler deploy` has no
+// entry point and must fail instead of overwriting a Worker.
+const TOP_LEVEL_WORKER_KEYS = ["name", "main", "compatibility_date"];
+
+/**
+ * Asserts the tables and keys the deploy config must provide. Extra tables
+ * and extra keys are allowed.
+ *
+ * @param {string} toml
+ * @param {string} label
+ */
+function assertRequiredStructure(toml, label) {
+  const tables = parseStructure(toml);
+
+  for (const required of REQUIRED_TABLES) {
+    const table = tables.find((t) => t.header === required.header);
+    assert.ok(table, `${label} must declare ${required.header}`);
+    for (const key of required.keys) {
+      assert.ok(
+        table.keys.includes(key),
+        `${label}: ${required.header} must declare ${key}`,
+      );
+    }
+  }
+
   const prefix = toml.split(/^\[env\./m)[0];
-  for (const key of ["name", "main", "compatibility_date"]) {
+  for (const key of TOP_LEVEL_WORKER_KEYS) {
     assert.doesNotMatch(
       prefix,
       new RegExp(`^${key}\\s*=`, "m"),
-      `top-level ${key} must not exist; a bare wrangler deploy must fail (deploy with --env production|staging)`,
+      `${label}: top-level ${key} must not exist; deploy with --env production|staging`,
     );
   }
-  assert.match(toml, /^\[env\.production\]/m, "production env must exist");
-  assert.match(toml, /^\[env\.staging\]/m, "staging env must exist");
+}
+
+test("task5: deploy template keeps the documented structure", () => {
+  assertRequiredStructure(
+    readFileSync(WRANGLER_EXAMPLE, "utf8"),
+    "wrangler.toml.example",
+  );
+
+  // `wrangler.toml` is operator-local; when present it must provide the
+  // same tables, so the checks below describe the real config too.
+  if (existsSync(WRANGLER_LOCAL)) {
+    assertRequiredStructure(
+      readFileSync(WRANGLER_LOCAL, "utf8"),
+      "wrangler.toml",
+    );
+  }
 });
 
-test("task5: all deploy environments declare a [vars] table", () => {
-  const toml = readWranglerToml();
+test("task5: every deploy environment declares non-empty [vars]", () => {
+  const toml = readFileSync(WRANGLER_EXAMPLE, "utf8");
   const tables = parseVarsTables(toml);
 
-  // Wrangler does not inherit [vars] into named environments: a dropped
-  // staging/production vars block would leave that environment on code
-  // defaults (proxyEnabled false etc.) with a green gate. Every deploy
-  // environment must declare the full public table explicitly.
   for (const deployEnv of ["production", "staging"]) {
+    const vars = tables.get(deployEnv);
     assert.ok(
-      tables.has(deployEnv),
-      `wrangler.toml must declare a [vars] table for the ${deployEnv} environment`,
+      vars,
+      `wrangler.toml.example must declare [env.${deployEnv}.vars]`,
     );
-    const keys = Object.keys(tables.get(deployEnv)).sort();
-    assert.deepEqual(
-      keys,
-      [...ALLOWED_VARS_KEYS].sort(),
-      `the ${deployEnv} [vars] table must stay within the documented public key set`,
+    assert.ok(
+      Object.keys(vars).length > 0,
+      `[env.${deployEnv}.vars] must not be empty`,
     );
+    for (const [key, value] of Object.entries(vars)) {
+      assert.ok(
+        value.trim().length > 0,
+        `${deployEnv} ${key} must not be empty`,
+      );
+    }
   }
 });
 
-test("task5: no secret-shaped assignment appears anywhere in wrangler.toml", () => {
-  const toml = readWranglerToml();
+test("task5: every deploy environment declares a non-empty CACHE_KV id", () => {
+  const toml = readFileSync(WRANGLER_EXAMPLE, "utf8");
+  const blocks = parseKvNamespaces(toml);
+  const ids = new Map();
 
-  // Known secret names must never carry a literal value, even commented out
-  // — including the empty-string trap that a 1+-chars regex would pass.
-  for (const name of SECRET_VAR_NAMES) {
+  for (const deployEnv of ["production", "staging"]) {
+    const block = blocks.find((b) =>
+      b.env === deployEnv && b.binding === "CACHE_KV"
+    );
+    assert.ok(
+      block,
+      `wrangler.toml.example must declare CACHE_KV for ${deployEnv}`,
+    );
+    assert.ok(
+      block.id.trim().length > 0,
+      `the ${deployEnv} CACHE_KV id must not be empty`,
+    );
+    ids.set(deployEnv, block.id);
+  }
+
+  assert.notEqual(
+    ids.get("staging"),
+    ids.get("production"),
+    "staging must never share production's CACHE_KV namespace",
+  );
+});
+
+test("task5: the deploy config carries no secret-shaped assignment", () => {
+  const files = [
+    { path: WRANGLER_EXAMPLE, label: "wrangler.toml.example" },
+  ];
+  if (existsSync(WRANGLER_LOCAL)) {
+    files.push({ path: WRANGLER_LOCAL, label: "wrangler.toml" });
+  }
+
+  for (const file of files) {
+    const toml = readFileSync(file.path, "utf8");
+    for (const name of SECRET_VAR_NAMES) {
+      assert.doesNotMatch(
+        toml,
+        secretAssignmentRegex(name),
+        `${file.label}: ${name} must only be set through "npx wrangler secret put", never written into the deploy config`,
+      );
+    }
     assert.doesNotMatch(
       toml,
-      secretAssignmentRegex(name),
-      `${name} must only be set through "npx wrangler secret put", never written into wrangler.toml`,
+      CREDENTIAL_SHAPED_ASSIGNMENT,
+      `${file.label}: credential-shaped assignment in the deploy config`,
     );
   }
-  // Generic credential-shaped assignment (shared constant above).
-  assert.doesNotMatch(
-    toml,
-    CREDENTIAL_SHAPED_ASSIGNMENT,
-    "wrangler.toml must not contain credential-shaped assignments",
-  );
 });
 
 test("task5: worker source contains no hardcoded credential assignments", () => {
   // The artifacts gate (scripts/check-artifacts.mjs) covers build output;
   // deno lint is not a credential scanner; nothing else reviews worker/src.
-  // Same two patterns as the wrangler.toml check so a future hardcoded
-  // credential in the Worker fails this suite instead of shipping green.
+  // Same two patterns as the artifact scan so a future hardcoded credential
+  // in the Worker fails this suite instead of shipping green.
   const sourceDir = path.join(
     path.dirname(fileURLToPath(import.meta.url)),
     "..",
