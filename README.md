@@ -40,6 +40,39 @@ request came from an official or unmodified client.
   distributable.
 - Data source: the public FxTwitter API (`api.fxtwitter.com`)
 
+## See it in action
+
+The options page supports local heuristic scoring, hosted proxy analysis, and
+BYOK endpoints:
+
+<table>
+  <tr>
+    <td align="center"><strong>Heuristic</strong></td>
+    <td align="center"><strong>Proxy</strong></td>
+    <td align="center"><strong>Bring your own key</strong></td>
+  </tr>
+  <tr>
+    <td><img src="assets/options-heuristic.png" alt="Heuristic mode options page" width="280"></td>
+    <td><img src="assets/options-proxy.png" alt="Proxy mode options page" width="280"></td>
+    <td><img src="assets/options-byok.png" alt="BYOK mode options page" width="280"></td>
+  </tr>
+</table>
+
+Hovering an account on X adds a compact status line to its hovercard:
+
+<table>
+  <tr>
+    <td align="center"><strong>Result</strong></td>
+    <td align="center"><strong>Insufficient data</strong></td>
+    <td align="center"><strong>Analyzing</strong></td>
+  </tr>
+  <tr>
+    <td><img src="assets/ragebait-band.png" alt="Hovercard with a low ragebait band" width="180"></td>
+    <td><img src="assets/insufficent-data.png" alt="Hovercard showing insufficient data" width="180"></td>
+    <td><img src="assets/analyzing-stage.png" alt="Hovercard showing the analyzing state" width="180"></td>
+  </tr>
+</table>
+
 ## Install
 
 The extension works on x.com and twitter.com in a desktop browser. The download
