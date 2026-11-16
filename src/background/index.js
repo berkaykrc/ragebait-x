@@ -957,6 +957,23 @@ export function wireBrowserRuntime(browserApi, deps = {}) {
     return true;
   });
 
+  const actionApi = browserApi.action || browserApi.browserAction;
+  if (
+    actionApi &&
+    actionApi.onClicked &&
+    isFn(actionApi.onClicked.addListener)
+  ) {
+    actionApi.onClicked.addListener(() => {
+      try {
+        if (isFn(browserApi.runtime.openOptionsPage)) {
+          browserApi.runtime.openOptionsPage();
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+
   return bg;
 }
 

@@ -22,9 +22,13 @@ test("dual build emits the MV2 and MV3 manifest contracts", async () => {
 
   assert.equal(mv2.manifest_version, 2);
   assert.equal(mv3.manifest_version, 3);
+  assert.equal(mv2.browser_action.default_title, "Ragebait Detector");
+  assert.equal(mv2.browser_action.default_icon["48"], "icon-48.png");
+  assert.deepEqual(mv2.icons, mv3.icons);
   assert.deepEqual(mv2.background, { scripts: ["background.js"] });
   assert.deepEqual(mv3.background, { service_worker: "background.js" });
   assert.ok(mv3.action);
+  assert.equal(mv3.action.default_title, "Ragebait Detector");
   assert.ok(Array.isArray(mv2.web_accessible_resources));
   assert.ok(Array.isArray(mv3.web_accessible_resources));
   assert.equal(typeof mv3.web_accessible_resources[0], "object");

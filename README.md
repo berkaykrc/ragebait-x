@@ -62,14 +62,25 @@ Hovering an account on X adds a compact status line to its hovercard:
 
 <table>
   <tr>
-    <td align="center"><strong>Result</strong></td>
-    <td align="center"><strong>Insufficient data</strong></td>
-    <td align="center"><strong>Analyzing</strong></td>
+    <td align="center"><strong>Low</strong></td>
+    <td align="center"><strong>Medium</strong></td>
+    <td align="center"><strong>High</strong></td>
   </tr>
   <tr>
     <td><img src="assets/ragebait-band.png" alt="Hovercard with a low ragebait band" width="180"></td>
-    <td><img src="assets/insufficent-data.png" alt="Hovercard showing insufficient data" width="180"></td>
+    <td><img src="assets/medium-band.png" alt="Hovercard with a medium ragebait band" width="180"></td>
+    <td><img src="assets/high-band.png" alt="Hovercard with a high ragebait band" width="180"></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td align="center"><strong>Analyzing</strong></td>
+    <td align="center"><strong>Insufficient data</strong></td>
+  </tr>
+  <tr>
     <td><img src="assets/analyzing-stage.png" alt="Hovercard showing the analyzing state" width="180"></td>
+    <td><img src="assets/insufficent-data.png" alt="Hovercard showing insufficient data" width="180"></td>
   </tr>
 </table>
 

@@ -58,6 +58,8 @@ body.rb-options {
   gap: 0.25em;
   padding: 0.15em 0.35em;
   border-radius: 9999px;
+  box-sizing: border-box;
+  max-width: 100%;
   /* band classes set --rb-band on the same element; loading/notice lines
    * have none, so fall back to a neutral grey pill instead of nothing */
   background: color-mix(
@@ -68,7 +70,7 @@ body.rb-options {
   border: 1px solid
     color-mix(in srgb, var(--rb-band, var(--rb-muted)) 32%, var(--rb-panel));
   font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
-  font-size: 85%;
+  font-size: 80%;
   line-height: 1.2;
   color: var(--rb-text);
 }
@@ -95,13 +97,14 @@ body.rb-options {
   display: inline-flex;
   gap: 0.1em;
   align-items: center;
+  flex-shrink: 0;
 }
 
 /* inside the hovercard pill the meter has no sized parent (the legend's
  * .rb-legend-item supplies its own width there); fixed flex bases give the
  * cells an intrinsic footprint */
 .ragebait-line-meter .rb-seg {
-  flex: 0 0 0.85em;
+  flex: 0 0 0.75em;
 }
 .rb-seg {
   flex: 1;

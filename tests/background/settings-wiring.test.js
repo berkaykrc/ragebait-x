@@ -423,3 +423,47 @@ test("wiring: boot tolerates a cache with no sweep() method", () => {
   assert.ok(bg, "background wired despite missing sweep");
   assert.doesNotThrow(() => bg.sweepCache(), "sweepCache is guarded");
 });
+
+test("wiring: browserAction.onClicked opens options page", () => {
+  const store = new Map();
+  const api = makeBrowserApi(store);
+  let optionsOpened = false;
+  api.runtime.openOptionsPage = () => {
+    optionsOpened = true;
+  };
+  let clickListener = null;
+  api.browserAction = {
+    onClicked: {
+      addListener: (fn) => {
+        clickListener = fn;
+      },
+    },
+  };
+
+  wireBrowserRuntime(api, {});
+  assert.ok(clickListener, "click listener registered on browserAction");
+  clickListener();
+  assert.equal(optionsOpened, true, "openOptionsPage called on click");
+});
+
+test("wiring: action.onClicked opens options page", () => {
+  const store = new Map();
+  const api = makeBrowserApi(store);
+  let optionsOpened = false;
+  api.runtime.openOptionsPage = () => {
+    optionsOpened = true;
+  };
+  let clickListener = null;
+  api.action = {
+    onClicked: {
+      addListener: (fn) => {
+        clickListener = fn;
+      },
+    },
+  };
+
+  wireBrowserRuntime(api, {});
+  assert.ok(clickListener, "click listener registered on action");
+  clickListener();
+  assert.equal(optionsOpened, true, "openOptionsPage called on click");
+});

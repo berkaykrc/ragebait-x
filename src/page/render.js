@@ -49,7 +49,7 @@ const STATE_COPY = {
   quota: "quota exceeded \u2014 retry tomorrow",
 };
 
-const ELLIPSIS = "  \u00b7\u00b7\u00b7";
+const ELLIPSIS = " \u00b7\u00b7\u00b7";
 
 /** The stale indicator's qualifier and class modifier. */
 const STALE_QUALIFIER = " (stale)";
